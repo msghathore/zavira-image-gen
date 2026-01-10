@@ -9,6 +9,7 @@ export interface ImageGenerationOptions {
   imageSize?: '1K' | '2K' | '4K';
   aspectRatio?: '1:1' | '16:9' | '9:16' | '4:3' | '3:4';
   referenceImage?: string; // Base64 image data for editing (data:image/... format)
+  styleReference?: string; // Base64 image data for style inspiration (data:image/... format)
 }
 
 // Model configurations
@@ -69,6 +70,7 @@ export async function generateImage(
     imageSize = '4K',
     aspectRatio = '1:1',
     referenceImage,
+    styleReference,
   } = options;
 
   const config = MODEL_CONFIG[model] || MODEL_CONFIG['nano-banana-2'];
@@ -92,6 +94,19 @@ export async function generateImage(
             inlineData: {
               mimeType: imageData.mimeType,
               data: imageData.data,
+            }
+          });
+        }
+      }
+
+      // Add style reference image second if provided (for style inspiration)
+      if (styleReference) {
+        const styleData = parseDataUrl(styleReference);
+        if (styleData) {
+          parts.push({
+            inlineData: {
+              mimeType: styleData.mimeType,
+              data: styleData.data,
             }
           });
         }

@@ -14,14 +14,20 @@ interface UploadedImageData {
 }
 
 interface ChatInputProps {
-  onSend: (message: string, referenceImageId?: string, uploadedImage?: string) => void;
+  onSend: (message: string, referenceImageId?: string, uploadedImage?: string, styleReference?: string) => void;
   isLoading: boolean;
   selectedImage: GeneratedImage | null;
   onClearSelectedImage: () => void;
+  // Main image (to edit/transform)
   uploadedImage: string | null;
   uploadedImageInfo: UploadedImageData | null;
   onImageUpload: (base64: string, fileName: string, fileSize: number) => void;
   onClearUploadedImage: () => void;
+  // Style reference image
+  styleReference: string | null;
+  styleReferenceInfo: UploadedImageData | null;
+  onStyleUpload: (base64: string, fileName: string, fileSize: number) => void;
+  onClearStyleReference: () => void;
 }
 
 export default function ChatInput({
@@ -33,19 +39,25 @@ export default function ChatInput({
   uploadedImageInfo,
   onImageUpload,
   onClearUploadedImage,
+  styleReference,
+  styleReferenceInfo,
+  onStyleUpload,
+  onClearStyleReference,
 }: ChatInputProps) {
   const [input, setInput] = useState('');
   const [uploadError, setUploadError] = useState<string | null>(null);
   const [isDragging, setIsDragging] = useState(false);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const styleInputRef = useRef<HTMLInputElement>(null);
 
   const handleSubmit = () => {
     if (!input.trim() || isLoading) return;
-    onSend(input.trim(), selectedImage?.id, uploadedImage || undefined);
+    onSend(input.trim(), selectedImage?.id, uploadedImage || undefined, styleReference || undefined);
     setInput('');
     onClearSelectedImage();
     onClearUploadedImage();
+    onClearStyleReference();
     setUploadError(null);
 
     // Reset textarea height
@@ -54,7 +66,7 @@ export default function ChatInput({
     }
   };
 
-  const processFile = useCallback((file: File) => {
+  const processFile = useCallback((file: File, isStyleReference: boolean = false) => {
     // Validate file type - support HEIC for iOS
     const validTypes = ['image/jpeg', 'image/png', 'image/webp', 'image/heic', 'image/heif'];
     const isValidType = validTypes.includes(file.type) ||
@@ -77,21 +89,27 @@ export default function ChatInput({
     const reader = new FileReader();
     reader.onload = (event) => {
       const base64 = event.target?.result as string;
-      onImageUpload(base64, file.name, file.size);
-      // Clear selected image when uploading a new one
-      onClearSelectedImage();
+      if (isStyleReference) {
+        onStyleUpload(base64, file.name, file.size);
+      } else {
+        onImageUpload(base64, file.name, file.size);
+        // Clear selected image when uploading a new main image
+        onClearSelectedImage();
+      }
     };
     reader.readAsDataURL(file);
-  }, [onImageUpload, onClearSelectedImage]);
+  }, [onImageUpload, onStyleUpload, onClearSelectedImage]);
 
-  const handleFileSelect = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleFileSelect = useCallback((e: React.ChangeEvent<HTMLInputElement>, isStyleReference: boolean = false) => {
     const file = e.target.files?.[0];
     if (!file) return;
 
-    processFile(file);
+    processFile(file, isStyleReference);
 
     // Reset file input so the same file can be selected again
-    if (fileInputRef.current) {
+    if (isStyleReference && styleInputRef.current) {
+      styleInputRef.current.value = '';
+    } else if (fileInputRef.current) {
       fileInputRef.current.value = '';
     }
   }, [processFile]);
@@ -103,7 +121,8 @@ export default function ChatInput({
 
     const file = e.dataTransfer.files?.[0];
     if (file) {
-      processFile(file);
+      // Default to main image for drag & drop
+      processFile(file, false);
     }
   }, [processFile]);
 
@@ -142,6 +161,8 @@ export default function ChatInput({
     return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
   };
 
+  const hasAnyImage = uploadedImage || styleReference;
+
   return (
     <div
       className={`relative border-t border-zinc-800 bg-zinc-900/50 p-4 transition-colors ${
@@ -151,13 +172,21 @@ export default function ChatInput({
       onDragOver={handleDragOver}
       onDragLeave={handleDragLeave}
     >
-      {/* Hidden file input with camera capture support for mobile */}
+      {/* Hidden file inputs */}
       <input
         ref={fileInputRef}
         type="file"
         accept={ACCEPTED_FORMATS}
         capture="environment"
-        onChange={handleFileSelect}
+        onChange={(e) => handleFileSelect(e, false)}
+        className="hidden"
+        disabled={isLoading}
+      />
+      <input
+        ref={styleInputRef}
+        type="file"
+        accept={ACCEPTED_FORMATS}
+        onChange={(e) => handleFileSelect(e, true)}
         className="hidden"
         disabled={isLoading}
       />
@@ -211,52 +240,112 @@ export default function ChatInput({
         </div>
       )}
 
-      {/* Uploaded image preview */}
-      {uploadedImage && (
-        <div className="mb-3 flex items-center gap-2 p-2 bg-zinc-800 rounded-lg">
-          <img
-            src={uploadedImage}
-            alt="Uploaded"
-            className="w-12 h-12 rounded object-cover"
-          />
-          <div className="flex-1 min-w-0">
-            <p className="text-xs text-emerald-400 font-medium">Uploaded image:</p>
-            <p className="text-xs text-gray-400 truncate">
-              {uploadedImageInfo?.fileName || 'Image'}
-            </p>
-            {uploadedImageInfo && (
-              <p className="text-xs text-gray-500">
-                {formatFileSize(uploadedImageInfo.fileSize)}
-              </p>
-            )}
-          </div>
-          <button
-            onClick={() => {
-              onClearUploadedImage();
-              setUploadError(null);
-            }}
-            className="p-1 hover:bg-zinc-700 rounded"
-            title="Remove image"
-          >
-            <svg
-              xmlns="http://www.w3.org/2000/svg"
-              className="h-4 w-4 text-gray-400"
-              fill="none"
-              viewBox="0 0 24 24"
-              stroke="currentColor"
-            >
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                strokeWidth={2}
-                d="M6 18L18 6M6 6l12 12"
+      {/* Image previews - side by side when both are present */}
+      {hasAnyImage && (
+        <div className="mb-3 flex gap-2">
+          {/* Main/Edit image preview */}
+          {uploadedImage && (
+            <div className="flex-1 flex items-center gap-2 p-2 bg-zinc-800 rounded-lg">
+              <img
+                src={uploadedImage}
+                alt="Edit"
+                className="w-12 h-12 rounded object-cover"
               />
-            </svg>
-          </button>
+              <div className="flex-1 min-w-0">
+                <p className="text-xs text-emerald-400 font-medium flex items-center gap-1">
+                  <svg xmlns="http://www.w3.org/2000/svg" className="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" />
+                  </svg>
+                  Edit
+                </p>
+                <p className="text-xs text-gray-400 truncate">
+                  {uploadedImageInfo?.fileName || 'Image'}
+                </p>
+                {uploadedImageInfo && (
+                  <p className="text-xs text-gray-500">
+                    {formatFileSize(uploadedImageInfo.fileSize)}
+                  </p>
+                )}
+              </div>
+              <button
+                onClick={() => {
+                  onClearUploadedImage();
+                  setUploadError(null);
+                }}
+                className="p-1 hover:bg-zinc-700 rounded"
+                title="Remove image"
+              >
+                <svg
+                  xmlns="http://www.w3.org/2000/svg"
+                  className="h-4 w-4 text-gray-400"
+                  fill="none"
+                  viewBox="0 0 24 24"
+                  stroke="currentColor"
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth={2}
+                    d="M6 18L18 6M6 6l12 12"
+                  />
+                </svg>
+              </button>
+            </div>
+          )}
+
+          {/* Style reference preview */}
+          {styleReference && (
+            <div className="flex-1 flex items-center gap-2 p-2 bg-zinc-800 rounded-lg">
+              <img
+                src={styleReference}
+                alt="Style"
+                className="w-12 h-12 rounded object-cover"
+              />
+              <div className="flex-1 min-w-0">
+                <p className="text-xs text-purple-400 font-medium flex items-center gap-1">
+                  <svg xmlns="http://www.w3.org/2000/svg" className="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 21a4 4 0 01-4-4V5a2 2 0 012-2h4a2 2 0 012 2v12a4 4 0 01-4 4zm0 0h12a2 2 0 002-2v-4a2 2 0 00-2-2h-2.343M11 7.343l1.657-1.657a2 2 0 012.828 0l2.829 2.829a2 2 0 010 2.828l-8.486 8.485M7 17h.01" />
+                  </svg>
+                  Style
+                </p>
+                <p className="text-xs text-gray-400 truncate">
+                  {styleReferenceInfo?.fileName || 'Reference'}
+                </p>
+                {styleReferenceInfo && (
+                  <p className="text-xs text-gray-500">
+                    {formatFileSize(styleReferenceInfo.fileSize)}
+                  </p>
+                )}
+              </div>
+              <button
+                onClick={() => {
+                  onClearStyleReference();
+                  setUploadError(null);
+                }}
+                className="p-1 hover:bg-zinc-700 rounded"
+                title="Remove style reference"
+              >
+                <svg
+                  xmlns="http://www.w3.org/2000/svg"
+                  className="h-4 w-4 text-gray-400"
+                  fill="none"
+                  viewBox="0 0 24 24"
+                  stroke="currentColor"
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth={2}
+                    d="M6 18L18 6M6 6l12 12"
+                  />
+                </svg>
+              </button>
+            </div>
+          )}
         </div>
       )}
 
-      {/* Selected image preview */}
+      {/* Selected image preview (when no uploaded image) */}
       {selectedImage && !uploadedImage && (
         <div className="mb-3 flex items-center gap-2 p-2 bg-zinc-800 rounded-lg">
           <img
@@ -291,7 +380,7 @@ export default function ChatInput({
       )}
 
       <div className="flex items-end gap-2">
-        {/* Upload button with camera icon */}
+        {/* Main image upload button (camera icon) */}
         <button
           onClick={() => fileInputRef.current?.click()}
           disabled={isLoading}
@@ -303,7 +392,7 @@ export default function ChatInput({
             }
             ${isLoading ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'}
           `}
-          title="Upload photo or take picture"
+          title="Upload image to edit"
         >
           {uploadedImage ? (
             // Checkmark when image is uploaded
@@ -322,7 +411,7 @@ export default function ChatInput({
               />
             </svg>
           ) : (
-            // Camera icon for photo capture
+            // Camera icon for main image upload
             <svg
               xmlns="http://www.w3.org/2000/svg"
               className="h-5 w-5 text-gray-300"
@@ -346,6 +435,55 @@ export default function ChatInput({
           )}
         </button>
 
+        {/* Style reference upload button (palette icon) */}
+        <button
+          onClick={() => styleInputRef.current?.click()}
+          disabled={isLoading}
+          className={`
+            flex-shrink-0 p-3 rounded-xl transition-all border
+            ${styleReference
+              ? 'bg-purple-600 border-purple-500 hover:bg-purple-700'
+              : 'bg-zinc-800 border-zinc-700 hover:bg-zinc-700'
+            }
+            ${isLoading ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'}
+          `}
+          title="Upload style reference"
+        >
+          {styleReference ? (
+            // Checkmark when style reference is uploaded
+            <svg
+              xmlns="http://www.w3.org/2000/svg"
+              className="h-5 w-5 text-white"
+              fill="none"
+              viewBox="0 0 24 24"
+              stroke="currentColor"
+            >
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                strokeWidth={2}
+                d="M5 13l4 4L19 7"
+              />
+            </svg>
+          ) : (
+            // Palette/brush icon for style reference
+            <svg
+              xmlns="http://www.w3.org/2000/svg"
+              className="h-5 w-5 text-gray-300"
+              fill="none"
+              viewBox="0 0 24 24"
+              stroke="currentColor"
+            >
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                strokeWidth={2}
+                d="M7 21a4 4 0 01-4-4V5a2 2 0 012-2h4a2 2 0 012 2v12a4 4 0 01-4 4zm0 0h12a2 2 0 002-2v-4a2 2 0 00-2-2h-2.343M11 7.343l1.657-1.657a2 2 0 012.828 0l2.829 2.829a2 2 0 010 2.828l-8.486 8.485M7 17h.01"
+              />
+            </svg>
+          )}
+        </button>
+
         <div className="flex-1 relative">
           <textarea
             ref={textareaRef}
@@ -353,8 +491,12 @@ export default function ChatInput({
             onChange={handleInput}
             onKeyDown={handleKeyDown}
             placeholder={
-              uploadedImage
+              uploadedImage && styleReference
+                ? "Describe how to transform this image with this style..."
+                : uploadedImage
                 ? "Describe what to do with this image..."
+                : styleReference
+                ? "Describe what to generate in this style..."
                 : selectedImage
                 ? "Describe how to edit this image..."
                 : "Describe the image you want to generate..."
@@ -414,11 +556,15 @@ export default function ChatInput({
       {/* Hint text */}
       <p className="mt-2 text-xs text-gray-500 text-center">
         Press Enter to send, Shift+Enter for new line.{' '}
-        {uploadedImage
-          ? 'Uploaded image will be used as reference.'
+        {uploadedImage && styleReference
+          ? 'Edit image with style reference attached.'
+          : uploadedImage
+          ? 'Image to edit attached.'
+          : styleReference
+          ? 'Style reference attached.'
           : selectedImage
           ? 'Selected image will be used as reference.'
-          : 'Upload a photo or drag & drop an image.'}
+          : 'Upload an image to edit or a style reference.'}
       </p>
     </div>
   );

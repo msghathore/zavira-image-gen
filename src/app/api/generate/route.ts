@@ -13,6 +13,7 @@ export async function POST(request: NextRequest) {
       aspectRatio = '1:1',
       referenceImageId,
       uploadedImage, // Base64 data URL from user upload
+      styleReference, // Base64 data URL for style inspiration
     } = body;
 
     if (!prompt) {
@@ -67,6 +68,7 @@ export async function POST(request: NextRequest) {
       imageSize: imageSize as any,
       aspectRatio: aspectRatio as any,
       referenceImage: referenceImageData,
+      styleReference: styleReference,
     });
 
     // Save assistant message

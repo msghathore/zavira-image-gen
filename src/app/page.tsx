@@ -25,6 +25,12 @@ export default function Home() {
     fileName: string;
     fileSize: number;
   } | null>(null);
+  const [styleReference, setStyleReference] = useState<string | null>(null);
+  const [styleReferenceInfo, setStyleReferenceInfo] = useState<{
+    base64: string;
+    fileName: string;
+    fileSize: number;
+  } | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
   // Scroll to bottom when new messages arrive
@@ -89,7 +95,7 @@ export default function Home() {
     }
   };
 
-  const handleSend = async (message: string, referenceImageId?: string, uploadedImageData?: string) => {
+  const handleSend = async (message: string, referenceImageId?: string, uploadedImageData?: string, styleReferenceData?: string) => {
     setIsLoading(true);
 
     // Optimistically add user message (include uploaded image if present)
@@ -107,6 +113,10 @@ export default function Home() {
     setUploadedImage(null);
     setUploadedImageInfo(null);
 
+    // Clear style reference after sending
+    setStyleReference(null);
+    setStyleReferenceInfo(null);
+
     try {
       const res = await fetch('/api/generate', {
         method: 'POST',
@@ -117,6 +127,7 @@ export default function Home() {
           referenceImageId,
           model: selectedModel,
           uploadedImage: uploadedImageData, // User-uploaded image takes priority
+          styleReference: styleReferenceData, // Style reference image
         }),
       });
 
@@ -376,6 +387,16 @@ export default function Home() {
           onClearUploadedImage={() => {
             setUploadedImage(null);
             setUploadedImageInfo(null);
+          }}
+          styleReference={styleReference}
+          styleReferenceInfo={styleReferenceInfo}
+          onStyleUpload={(base64, fileName, fileSize) => {
+            setStyleReference(base64);
+            setStyleReferenceInfo({ base64, fileName, fileSize });
+          }}
+          onClearStyleReference={() => {
+            setStyleReference(null);
+            setStyleReferenceInfo(null);
           }}
         />
       </main>
