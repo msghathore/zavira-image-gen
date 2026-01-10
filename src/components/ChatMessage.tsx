@@ -26,6 +26,23 @@ export default function ChatMessage({ message, onImageSelect }: ChatMessageProps
             : 'bg-zinc-800 text-gray-100 rounded-2xl rounded-bl-md'
         } px-4 py-3`}
       >
+        {/* Uploaded image (for user messages) */}
+        {message.uploadedImage && (
+          <div className="mb-2">
+            <div className="relative inline-block">
+              <img
+                src={message.uploadedImage}
+                alt="Uploaded reference"
+                className="max-w-[200px] max-h-[200px] rounded-lg object-cover cursor-pointer hover:opacity-90 transition-opacity"
+                onClick={() => setExpandedImage(message.uploadedImage!)}
+              />
+              <div className="absolute top-1 left-1 px-1.5 py-0.5 bg-black/60 rounded text-[10px] text-emerald-400 font-medium">
+                Reference
+              </div>
+            </div>
+          </div>
+        )}
+
         {/* Message content */}
         <p className="text-sm whitespace-pre-wrap">{message.content}</p>
 

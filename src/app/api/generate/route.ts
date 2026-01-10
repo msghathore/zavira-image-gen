@@ -11,7 +11,8 @@ export async function POST(request: NextRequest) {
       model = 'nano-banana-2',
       imageSize = '4K',
       aspectRatio = '1:1',
-      referenceImageId
+      referenceImageId,
+      uploadedImage, // Base64 data URL from user upload
     } = body;
 
     if (!prompt) {
@@ -40,10 +41,14 @@ export async function POST(request: NextRequest) {
       prompt.toLowerCase().includes(keyword)
     );
 
-    if (previousImages && previousImages.length > 0) {
-      // Get the reference image for editing
+    // Priority: User-uploaded image takes precedence over conversation history
+    if (uploadedImage) {
+      // User uploaded an image - use it as the reference
+      referenceImageData = uploadedImage;
+    } else if (previousImages && previousImages.length > 0) {
+      // Fall back to conversation history images
       if (referenceImageId) {
-        // User explicitly selected an image
+        // User explicitly selected an image from history
         referenceImageData = previousImages.find(img => img.id === referenceImageId)?.image_url;
       } else if (isEditRequest) {
         // Auto-select the most recent image for edit requests

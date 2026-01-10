@@ -19,6 +19,12 @@ export default function Home() {
   const [showGallery, setShowGallery] = useState(false);
   const [conversationImages, setConversationImages] = useState<GeneratedImage[]>([]);
   const [selectedModel, setSelectedModel] = useState<ImageModel>('nano-banana-2');
+  const [uploadedImage, setUploadedImage] = useState<string | null>(null);
+  const [uploadedImageInfo, setUploadedImageInfo] = useState<{
+    base64: string;
+    fileName: string;
+    fileSize: number;
+  } | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
   // Scroll to bottom when new messages arrive
@@ -83,18 +89,23 @@ export default function Home() {
     }
   };
 
-  const handleSend = async (message: string, referenceImageId?: string) => {
+  const handleSend = async (message: string, referenceImageId?: string, uploadedImageData?: string) => {
     setIsLoading(true);
 
-    // Optimistically add user message
+    // Optimistically add user message (include uploaded image if present)
     const tempUserMessage: Message = {
       id: `temp-${Date.now()}`,
       conversation_id: activeConversation?.id || '',
       role: 'user',
       content: message,
       created_at: new Date().toISOString(),
+      uploadedImage: uploadedImageData, // Show uploaded image in message
     };
     setMessages((prev) => [...prev, tempUserMessage]);
+
+    // Clear uploaded image immediately after adding to message
+    setUploadedImage(null);
+    setUploadedImageInfo(null);
 
     try {
       const res = await fetch('/api/generate', {
@@ -105,6 +116,7 @@ export default function Home() {
           conversationId: activeConversation?.id,
           referenceImageId,
           model: selectedModel,
+          uploadedImage: uploadedImageData, // User-uploaded image takes priority
         }),
       });
 
@@ -355,6 +367,16 @@ export default function Home() {
           isLoading={isLoading}
           selectedImage={selectedImage}
           onClearSelectedImage={() => setSelectedImage(null)}
+          uploadedImage={uploadedImage}
+          uploadedImageInfo={uploadedImageInfo}
+          onImageUpload={(base64, fileName, fileSize) => {
+            setUploadedImage(base64);
+            setUploadedImageInfo({ base64, fileName, fileSize });
+          }}
+          onClearUploadedImage={() => {
+            setUploadedImage(null);
+            setUploadedImageInfo(null);
+          }}
         />
       </main>
     </div>

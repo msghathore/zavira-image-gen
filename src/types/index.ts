@@ -5,6 +5,7 @@ export interface Message {
   content: string;
   created_at: string;
   images?: GeneratedImage[];
+  uploadedImage?: string; // Base64 image uploaded by user
 }
 
 export interface GeneratedImage {
@@ -41,6 +42,7 @@ export interface ImageGenerationRequest {
   size?: string;
   conversationId?: string;
   referenceImageUrl?: string; // For image editing context
+  uploadedImage?: string; // Base64 data URL for user-uploaded reference image
 }
 
 export interface LaoZhangImageResponse {
