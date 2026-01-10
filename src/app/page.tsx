@@ -102,7 +102,7 @@ export default function Home() {
           prompt: message,
           conversationId: activeConversation?.id,
           referenceImageId,
-          model: 'gemini-2.5-flash-image',
+          model: 'nano-banana-pro',
         }),
       });
 

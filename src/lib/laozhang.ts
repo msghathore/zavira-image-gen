@@ -3,7 +3,7 @@
 
 export interface ImageGenerationOptions {
   prompt: string;
-  model?: 'gemini-2.5-flash-image' | 'gpt-image-1' | 'dall-e-3';
+  model?: 'nano-banana-pro' | 'gpt-image-1' | 'dall-e-3';
   size?: '1024x1024' | '1792x1024' | '1024x1792' | '512x512';
 }
 
@@ -16,14 +16,14 @@ export function createLaoZhangClient(apiKey: string): LaoZhangClient {
   return { apiKey };
 }
 
-// Generate image using Nano Banana (gemini-2.5-flash-image) via chat completions API
+// Generate image using Nano Banana Pro via chat completions API
 export async function generateImage(
   client: LaoZhangClient,
   options: ImageGenerationOptions
 ): Promise<{ url: string; revisedPrompt?: string }> {
   const {
     prompt,
-    model = 'gemini-2.5-flash-image',
+    model = 'nano-banana-pro',
   } = options;
 
   try {

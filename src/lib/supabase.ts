@@ -99,7 +99,7 @@ export async function saveGeneratedImage(
   imageUrl: string,
   prompt: string,
   revisedPrompt?: string,
-  model: string = 'gemini-2.5-flash-image'
+  model: string = 'nano-banana-pro'
 ) {
   const { data, error } = await supabase
     .from('generated_images')
