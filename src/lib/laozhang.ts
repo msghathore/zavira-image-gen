@@ -10,22 +10,21 @@ export function createLaoZhangClient(apiKey: string) {
 
 export interface ImageGenerationOptions {
   prompt: string;
-  model?: 'nano-banana-pro' | 'gpt-image-1' | 'dall-e-3';
+  model?: 'gemini-2.5-flash-image' | 'gpt-image-1' | 'dall-e-3';
   size?: '1024x1024' | '1792x1024' | '1024x1792' | '512x512';
 }
 
-// Generate image using nano-banana-pro via chat completions API
+// Generate image using Nano Banana Pro (gemini-2.5-flash-image) via chat completions API
 export async function generateImage(
   client: OpenAI,
   options: ImageGenerationOptions
 ): Promise<{ url: string; revisedPrompt?: string }> {
   const {
     prompt,
-    model = 'nano-banana-pro',
+    model = 'gemini-2.5-flash-image', // Nano Banana Pro
   } = options;
 
   try {
-    // nano-banana-pro uses the chat completions endpoint
     const response = await client.chat.completions.create({
       model,
       messages: [
@@ -40,15 +39,17 @@ export async function generateImage(
     const content = response.choices[0]?.message?.content || '';
 
     // Extract image URL from response
-    // The API typically returns URLs in the format https://... or markdown format ![](url)
-    const urlPatterns = [
-      /!\[.*?\]\((https?:\/\/[^\s\)]+)\)/i,  // Markdown format ![](url)
-      /https?:\/\/[^\s<>"]+\.(png|jpg|jpeg|webp|gif)[^\s<>"]*/i,  // Direct URL with image extension
-      /(https?:\/\/[^\s<>"]+)/i,  // Any URL
+    // The API returns images in markdown format: ![image](data:image/png;base64,...)
+    // Or sometimes with http URLs
+    const patterns = [
+      /!\[.*?\]\((data:image\/[^;]+;base64,[^\)]+)\)/i,  // Base64 data URL in markdown
+      /!\[.*?\]\((https?:\/\/[^\s\)]+)\)/i,  // HTTP URL in markdown
+      /(data:image\/[^;]+;base64,[^\s<>"]+)/i,  // Raw base64 data URL
+      /https?:\/\/[^\s<>"]+\.(png|jpg|jpeg|webp|gif)[^\s<>"]*/i,  // Direct image URL
     ];
 
     let imageUrl: string | null = null;
-    for (const pattern of urlPatterns) {
+    for (const pattern of patterns) {
       const match = content.match(pattern);
       if (match) {
         imageUrl = match[1] || match[0];
@@ -57,8 +58,8 @@ export async function generateImage(
     }
 
     if (!imageUrl) {
-      console.error('Response content:', content);
-      throw new Error('No image URL found in response');
+      console.error('Response content (truncated):', content.substring(0, 500));
+      throw new Error('No image found in response');
     }
 
     return {

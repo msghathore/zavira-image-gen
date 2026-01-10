@@ -8,7 +8,7 @@ export async function POST(request: NextRequest) {
     const {
       prompt,
       conversationId,
-      model = 'nano-banana-pro',
+      model = 'gemini-2.5-flash-image',
       size = '1024x1024',
       referenceImageId
     } = body;
