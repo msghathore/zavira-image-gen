@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useRef } from 'react';
 import { Conversation, Message, GeneratedImage } from '@/types';
+import { AVAILABLE_MODELS, ImageModel } from '@/lib/laozhang';
 import ConversationSidebar from '@/components/ConversationSidebar';
 import ChatMessage from '@/components/ChatMessage';
 import ChatInput from '@/components/ChatInput';
@@ -17,6 +18,7 @@ export default function Home() {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [showGallery, setShowGallery] = useState(false);
   const [conversationImages, setConversationImages] = useState<GeneratedImage[]>([]);
+  const [selectedModel, setSelectedModel] = useState<ImageModel>('nano-banana-pro');
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
   // Scroll to bottom when new messages arrive
@@ -102,7 +104,7 @@ export default function Home() {
           prompt: message,
           conversationId: activeConversation?.id,
           referenceImageId,
-          model: 'nano-banana-pro',
+          model: selectedModel,
         }),
       });
 
@@ -204,12 +206,26 @@ export default function Home() {
                 {activeConversation?.title || 'AI Image Generator'}
               </h1>
               <p className="text-xs text-gray-500">
-                Using Nano Banana Pro (Google Gemini)
+                {AVAILABLE_MODELS.find(m => m.id === selectedModel)?.description || 'AI Image Generation'}
               </p>
             </div>
           </div>
 
-          {/* Gallery toggle */}
+          <div className="flex items-center gap-2">
+            {/* Model selector */}
+            <select
+              value={selectedModel}
+              onChange={(e) => setSelectedModel(e.target.value as ImageModel)}
+              className="bg-zinc-800 text-white text-sm rounded-lg px-3 py-2 border border-zinc-700 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+            >
+              {AVAILABLE_MODELS.map((model) => (
+                <option key={model.id} value={model.id}>
+                  {model.name}
+                </option>
+              ))}
+            </select>
+
+            {/* Gallery toggle */}
           {conversationImages.length > 0 && (
             <button
               onClick={() => setShowGallery(!showGallery)}
@@ -233,6 +249,7 @@ export default function Home() {
               </svg>
             </button>
           )}
+          </div>
         </header>
 
         {/* Content area */}

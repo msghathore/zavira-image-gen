@@ -1,11 +1,18 @@
 // Lao Zhang API client for image generation
 // Uses direct fetch to match official API format
 
+export type ImageModel = 'nano-banana-pro' | 'gpt-image-1';
+
 export interface ImageGenerationOptions {
   prompt: string;
-  model?: 'nano-banana-pro' | 'gpt-image-1' | 'dall-e-3';
+  model?: ImageModel;
   size?: '1024x1024' | '1792x1024' | '1024x1792' | '512x512';
 }
+
+export const AVAILABLE_MODELS: { id: ImageModel; name: string; description: string }[] = [
+  { id: 'nano-banana-pro', name: 'Nano Banana Pro', description: 'Google Gemini - Fast & affordable' },
+  { id: 'gpt-image-1', name: 'GPT Image', description: 'OpenAI - High quality' },
+];
 
 export interface LaoZhangClient {
   apiKey: string;
