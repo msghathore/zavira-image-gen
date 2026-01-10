@@ -9,14 +9,14 @@ export interface ImageGenerationOptions {
   size?: '1024x1024' | '1792x1024' | '1024x1792' | '512x512';
 }
 
-// Map user-friendly model names to actual API model IDs
+// Use exact model names from Lao Zhang pricing page
 const MODEL_ID_MAP: Record<ImageModel, string> = {
-  'nano-banana-pro': 'gemini-3-pro-image-preview',  // Actual API model ID for Nano Banana Pro
+  'nano-banana-pro': 'nano-banana-pro',  // Exact name from Lao Zhang pricing
   'gpt-image-1': 'gpt-image-1',
 };
 
 export const AVAILABLE_MODELS: { id: ImageModel; name: string; description: string }[] = [
-  { id: 'nano-banana-pro', name: 'Nano Banana Pro', description: 'Google Gemini 3 Pro - 4K Images' },
+  { id: 'nano-banana-pro', name: 'Nano Banana Pro', description: 'Google Gemini - Fast & affordable' },
   { id: 'gpt-image-1', name: 'GPT Image', description: 'OpenAI - High quality' },
 ];
 
@@ -40,7 +40,7 @@ export async function generateImage(
   } = options;
 
   // Get the actual API model ID from the mapping
-  const apiModelId = MODEL_ID_MAP[model] || 'gemini-3-pro-image-preview';
+  const apiModelId = MODEL_ID_MAP[model] || 'nano-banana-pro';
 
   try {
     // Use fetch directly to match official API format
