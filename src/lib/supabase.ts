@@ -48,10 +48,25 @@ export async function getConversation(id: string) {
   const { data, error } = await supabase
     .from('image_conversations')
     .select(`
-      *,
+      id,
+      title,
+      created_at,
+      updated_at,
       image_messages (
-        *,
-        generated_images (*)
+        id,
+        conversation_id,
+        role,
+        content,
+        created_at,
+        generated_images (
+          id,
+          message_id,
+          conversation_id,
+          prompt,
+          revised_prompt,
+          model,
+          created_at
+        )
       )
     `)
     .eq('id', id)
@@ -60,13 +75,25 @@ export async function getConversation(id: string) {
 
   if (error) throw error;
 
-  // Format messages with their images
+  // Format messages with their images (without base64 data)
   const messages = data.image_messages?.map((msg: any) => ({
     ...msg,
     images: msg.generated_images || [],
   }));
 
   return { ...data, messages };
+}
+
+// Load single image data on demand
+export async function getImageData(imageId: string) {
+  const { data, error } = await supabase
+    .from('generated_images')
+    .select('id, image_url')
+    .eq('id', imageId)
+    .single();
+
+  if (error) throw error;
+  return data;
 }
 
 export async function addMessage(conversationId: string, role: 'user' | 'assistant', content: string) {

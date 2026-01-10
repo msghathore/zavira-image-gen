@@ -2,18 +2,56 @@
 
 import { Message, GeneratedImage } from '@/types';
 import Image from 'next/image';
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 
 interface ChatMessageProps {
   message: Message;
   onImageSelect?: (image: GeneratedImage) => void;
 }
 
+// Cache for loaded image URLs
+const imageUrlCache: Record<string, string> = {};
+
 export default function ChatMessage({ message, onImageSelect }: ChatMessageProps) {
   const [imageLoaded, setImageLoaded] = useState<Record<string, boolean>>({});
+  const [imageUrls, setImageUrls] = useState<Record<string, string>>({});
   const [expandedImage, setExpandedImage] = useState<string | null>(null);
 
   const isUser = message.role === 'user';
+
+  // Lazy load image URLs
+  useEffect(() => {
+    if (!message.images || message.images.length === 0) return;
+
+    message.images.forEach(async (image) => {
+      // Skip if already loaded or has URL
+      if (imageUrls[image.id] || imageUrlCache[image.id]) {
+        if (imageUrlCache[image.id] && !imageUrls[image.id]) {
+          setImageUrls(prev => ({ ...prev, [image.id]: imageUrlCache[image.id] }));
+        }
+        return;
+      }
+
+      // If image already has URL (from new generation), use it
+      if (image.image_url) {
+        imageUrlCache[image.id] = image.image_url;
+        setImageUrls(prev => ({ ...prev, [image.id]: image.image_url }));
+        return;
+      }
+
+      // Fetch from API
+      try {
+        const res = await fetch(`/api/images/${image.id}`);
+        const data = await res.json();
+        if (data.image?.image_url) {
+          imageUrlCache[image.id] = data.image.image_url;
+          setImageUrls(prev => ({ ...prev, [image.id]: data.image.image_url }));
+        }
+      } catch (error) {
+        console.error('Failed to load image:', error);
+      }
+    });
+  }, [message.images]);
 
   return (
     <div
@@ -49,59 +87,64 @@ export default function ChatMessage({ message, onImageSelect }: ChatMessageProps
         {/* Generated images */}
         {message.images && message.images.length > 0 && (
           <div className="mt-3 space-y-3">
-            {message.images.map((image) => (
-              <div key={image.id} className="relative group">
-                {/* Loading skeleton */}
-                {!imageLoaded[image.id] && (
-                  <div className="w-full aspect-square rounded-lg skeleton" />
-                )}
+            {message.images.map((image) => {
+              const imageUrl = imageUrls[image.id] || image.image_url;
+              return (
+                <div key={image.id} className="relative group">
+                  {/* Loading skeleton */}
+                  {(!imageUrl || !imageLoaded[image.id]) && (
+                    <div className="w-full aspect-square rounded-lg skeleton" />
+                  )}
 
-                {/* Image */}
-                <div
-                  className={`relative ${!imageLoaded[image.id] ? 'hidden' : ''}`}
-                  onClick={() => setExpandedImage(image.image_url)}
-                >
-                  <Image
-                    src={image.image_url}
-                    alt={image.prompt || 'Generated image'}
-                    width={512}
-                    height={512}
-                    className="rounded-lg cursor-pointer hover:opacity-90 transition-opacity image-glow"
-                    onLoad={() =>
-                      setImageLoaded((prev) => ({ ...prev, [image.id]: true }))
-                    }
-                  />
+                  {/* Image */}
+                  {imageUrl && (
+                    <div
+                      className={`relative ${!imageLoaded[image.id] ? 'hidden' : ''}`}
+                      onClick={() => setExpandedImage(imageUrl)}
+                    >
+                      <Image
+                        src={imageUrl}
+                        alt={image.prompt || 'Generated image'}
+                        width={512}
+                        height={512}
+                        className="rounded-lg cursor-pointer hover:opacity-90 transition-opacity image-glow"
+                        onLoad={() =>
+                          setImageLoaded((prev) => ({ ...prev, [image.id]: true }))
+                        }
+                      />
 
-                  {/* Overlay with actions */}
-                  <div className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity rounded-lg flex items-center justify-center gap-2">
-                    <button
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        if (onImageSelect) onImageSelect(image);
-                      }}
-                      className="px-3 py-1.5 bg-indigo-600 hover:bg-indigo-700 rounded-lg text-xs font-medium transition-colors"
-                    >
-                      Edit this
-                    </button>
-                    <a
-                      href={image.image_url}
-                      download={`generated-${image.id}.png`}
-                      onClick={(e) => e.stopPropagation()}
-                      className="px-3 py-1.5 bg-zinc-700 hover:bg-zinc-600 rounded-lg text-xs font-medium transition-colors"
-                    >
-                      Download
-                    </a>
-                  </div>
+                      {/* Overlay with actions */}
+                      <div className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity rounded-lg flex items-center justify-center gap-2">
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            if (onImageSelect) onImageSelect({ ...image, image_url: imageUrl });
+                          }}
+                          className="px-3 py-1.5 bg-indigo-600 hover:bg-indigo-700 rounded-lg text-xs font-medium transition-colors"
+                        >
+                          Edit this
+                        </button>
+                        <a
+                          href={imageUrl}
+                          download={`generated-${image.id}.png`}
+                          onClick={(e) => e.stopPropagation()}
+                          className="px-3 py-1.5 bg-zinc-700 hover:bg-zinc-600 rounded-lg text-xs font-medium transition-colors"
+                        >
+                          Download
+                        </a>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Prompt label */}
+                  {image.revised_prompt && (
+                    <p className="mt-1 text-xs text-gray-400 italic truncate">
+                      {image.revised_prompt}
+                    </p>
+                  )}
                 </div>
-
-                {/* Prompt label */}
-                {image.revised_prompt && (
-                  <p className="mt-1 text-xs text-gray-400 italic truncate">
-                    {image.revised_prompt}
-                  </p>
-                )}
-              </div>
-            ))}
+              );
+            })}
           </div>
         )}
 
