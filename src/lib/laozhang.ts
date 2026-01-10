@@ -1,12 +1,5 @@
-import OpenAI from 'openai';
-
-// Create OpenAI client configured for Lao Zhang API
-export function createLaoZhangClient(apiKey: string) {
-  return new OpenAI({
-    apiKey,
-    baseURL: 'https://api.laozhang.ai/v1',
-  });
-}
+// Lao Zhang API client for image generation
+// Uses direct fetch to match official API format
 
 export interface ImageGenerationOptions {
   prompt: string;
@@ -14,29 +7,53 @@ export interface ImageGenerationOptions {
   size?: '1024x1024' | '1792x1024' | '1024x1792' | '512x512';
 }
 
-// Generate image using Nano Banana Pro (gemini-2.5-flash-image) via chat completions API
+export interface LaoZhangClient {
+  apiKey: string;
+}
+
+// Create client with API key
+export function createLaoZhangClient(apiKey: string): LaoZhangClient {
+  return { apiKey };
+}
+
+// Generate image using Nano Banana (gemini-2.5-flash-image) via chat completions API
 export async function generateImage(
-  client: OpenAI,
+  client: LaoZhangClient,
   options: ImageGenerationOptions
 ): Promise<{ url: string; revisedPrompt?: string }> {
   const {
     prompt,
-    model = 'gemini-2.5-flash-image', // Nano Banana Pro
+    model = 'gemini-2.5-flash-image',
   } = options;
 
   try {
-    const response = await client.chat.completions.create({
-      model,
-      messages: [
-        {
-          role: 'user',
-          content: `Generate an image: ${prompt}`,
-        },
-      ],
-      max_tokens: 4096,
+    // Use fetch directly to match official API format
+    const response = await fetch('https://api.laozhang.ai/v1/chat/completions', {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${client.apiKey}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        model,
+        stream: false,
+        messages: [
+          {
+            role: 'user',
+            content: prompt,
+          },
+        ],
+      }),
     });
 
-    const content = response.choices[0]?.message?.content || '';
+    if (!response.ok) {
+      const errorText = await response.text();
+      console.error('API Error:', response.status, errorText);
+      throw new Error(`API Error: ${response.status} - ${errorText}`);
+    }
+
+    const data = await response.json();
+    const content = data.choices?.[0]?.message?.content || '';
 
     // Extract image URL from response
     // The API returns images in markdown format: ![image](data:image/png;base64,...)
