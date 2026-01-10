@@ -10,12 +10,11 @@ export function createLaoZhangClient(apiKey: string) {
 
 export interface ImageGenerationOptions {
   prompt: string;
-  model?: 'nano-banana-pro' | 'nano-banana' | 'gpt-image-1' | 'dall-e-3' | 'flux-pro';
+  model?: 'nano-banana-pro' | 'gpt-image-1' | 'dall-e-3';
   size?: '1024x1024' | '1792x1024' | '1024x1792' | '512x512';
-  quality?: 'standard' | 'hd';
-  n?: number;
 }
 
+// Generate image using nano-banana-pro via chat completions API
 export async function generateImage(
   client: OpenAI,
   options: ImageGenerationOptions
@@ -23,65 +22,52 @@ export async function generateImage(
   const {
     prompt,
     model = 'nano-banana-pro',
-    size = '1024x1024',
-    quality = 'standard',
-    n = 1,
   } = options;
 
   try {
-    const response = await client.images.generate({
-      model,
-      prompt,
-      n,
-      size,
-      quality,
-    });
-
-    if (!response.data || response.data.length === 0) {
-      throw new Error('No image data returned');
-    }
-
-    const imageData = response.data[0];
-
-    if (!imageData.url && !imageData.b64_json) {
-      throw new Error('No image URL or base64 data returned');
-    }
-
-    return {
-      url: imageData.url || `data:image/png;base64,${imageData.b64_json}`,
-      revisedPrompt: imageData.revised_prompt,
-    };
-  } catch (error: any) {
-    console.error('Image generation error:', error);
-    throw new Error(error.message || 'Failed to generate image');
-  }
-}
-
-// Chat-based image generation (for models that support it)
-export async function generateImageViaChat(
-  client: OpenAI,
-  messages: Array<{ role: 'user' | 'assistant' | 'system'; content: string }>,
-  model: string = 'gpt-4o-image'
-): Promise<{ content: string; imageUrl?: string }> {
-  try {
+    // nano-banana-pro uses the chat completions endpoint
     const response = await client.chat.completions.create({
       model,
-      messages,
+      messages: [
+        {
+          role: 'user',
+          content: `Generate an image: ${prompt}`,
+        },
+      ],
       max_tokens: 4096,
     });
 
     const content = response.choices[0]?.message?.content || '';
 
-    // Extract image URL if present in response
-    const imageUrlMatch = content.match(/https?:\/\/[^\s]+\.(png|jpg|jpeg|webp|gif)/i);
+    // Extract image URL from response
+    // The API typically returns URLs in the format https://... or markdown format ![](url)
+    const urlPatterns = [
+      /!\[.*?\]\((https?:\/\/[^\s\)]+)\)/i,  // Markdown format ![](url)
+      /https?:\/\/[^\s<>"]+\.(png|jpg|jpeg|webp|gif)[^\s<>"]*/i,  // Direct URL with image extension
+      /(https?:\/\/[^\s<>"]+)/i,  // Any URL
+    ];
+
+    let imageUrl: string | null = null;
+    for (const pattern of urlPatterns) {
+      const match = content.match(pattern);
+      if (match) {
+        imageUrl = match[1] || match[0];
+        break;
+      }
+    }
+
+    if (!imageUrl) {
+      console.error('Response content:', content);
+      throw new Error('No image URL found in response');
+    }
 
     return {
-      content,
-      imageUrl: imageUrlMatch?.[0],
+      url: imageUrl,
+      revisedPrompt: prompt,
     };
   } catch (error: any) {
-    console.error('Chat completion error:', error);
-    throw new Error(error.message || 'Failed to generate response');
+    console.error('Image generation error:', error);
+    throw new Error(error.message || 'Failed to generate image');
   }
 }
 
