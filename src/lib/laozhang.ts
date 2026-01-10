@@ -8,6 +8,7 @@ export interface ImageGenerationOptions {
   model?: ImageModel;
   imageSize?: '1K' | '2K' | '4K';
   aspectRatio?: '1:1' | '16:9' | '9:16' | '4:3' | '3:4';
+  referenceImage?: string; // Base64 image data for editing (data:image/... format)
 }
 
 // Model configurations
@@ -49,6 +50,15 @@ export function createLaoZhangClient(apiKey: string): LaoZhangClient {
 }
 
 // Generate image using Lao Zhang API
+// Helper to extract base64 data and mime type from data URL
+function parseDataUrl(dataUrl: string): { mimeType: string; data: string } | null {
+  const match = dataUrl.match(/^data:([^;]+);base64,(.+)$/);
+  if (match) {
+    return { mimeType: match[1], data: match[2] };
+  }
+  return null;
+}
+
 export async function generateImage(
   client: LaoZhangClient,
   options: ImageGenerationOptions
@@ -58,6 +68,7 @@ export async function generateImage(
     model = 'nano-banana-2',
     imageSize = '4K',
     aspectRatio = '1:1',
+    referenceImage,
   } = options;
 
   const config = MODEL_CONFIG[model] || MODEL_CONFIG['nano-banana-2'];
@@ -70,6 +81,25 @@ export async function generateImage(
       // Use Google native format for Nano Banana models (supports 4K)
       const actualSize = config.supports4K ? imageSize : (imageSize === '4K' ? '2K' : imageSize);
 
+      // Build parts array - include reference image if provided for editing
+      const parts: Array<{ text?: string; inlineData?: { mimeType: string; data: string } }> = [];
+
+      // Add reference image first if provided (for image editing)
+      if (referenceImage) {
+        const imageData = parseDataUrl(referenceImage);
+        if (imageData) {
+          parts.push({
+            inlineData: {
+              mimeType: imageData.mimeType,
+              data: imageData.data,
+            }
+          });
+        }
+      }
+
+      // Add text prompt
+      parts.push({ text: prompt });
+
       response = await fetch(`https://api.laozhang.ai/v1beta/models/${config.apiModelId}:generateContent`, {
         method: 'POST',
         headers: {
@@ -78,7 +108,7 @@ export async function generateImage(
         },
         body: JSON.stringify({
           contents: [{
-            parts: [{ text: prompt }]
+            parts: parts
           }],
           generationConfig: {
             responseModalities: ['IMAGE'],

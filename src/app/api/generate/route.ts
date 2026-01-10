@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { createLaoZhangClient, generateImage, buildEditPrompt } from '@/lib/laozhang';
+import { createLaoZhangClient, generateImage } from '@/lib/laozhang';
 import { addMessage, saveGeneratedImage, getConversationImages, createConversation } from '@/lib/supabase';
 
 export async function POST(request: NextRequest) {
@@ -33,20 +33,22 @@ export async function POST(request: NextRequest) {
     // Get previous images for context
     const previousImages = await getConversationImages(convId);
 
-    // Build context-aware prompt
-    let finalPrompt = prompt;
+    // Determine if this is an edit request and get reference image
+    let referenceImageData: string | undefined;
+    const editKeywords = ['edit', 'modify', 'change', 'update', 'make it', 'add', 'remove', 'adjust', 'keep', 'same', 'but'];
+    const isEditRequest = editKeywords.some(keyword =>
+      prompt.toLowerCase().includes(keyword)
+    );
+
     if (previousImages && previousImages.length > 0) {
-      const imageContext = previousImages.map(img => ({
-        prompt: img.prompt,
-        url: img.image_url,
-      }));
-
-      // Find reference image if specified
-      const referenceUrl = referenceImageId
-        ? previousImages.find(img => img.id === referenceImageId)?.image_url
-        : undefined;
-
-      finalPrompt = buildEditPrompt(prompt, imageContext, referenceUrl);
+      // Get the reference image for editing
+      if (referenceImageId) {
+        // User explicitly selected an image
+        referenceImageData = previousImages.find(img => img.id === referenceImageId)?.image_url;
+      } else if (isEditRequest) {
+        // Auto-select the most recent image for edit requests
+        referenceImageData = previousImages[0]?.image_url;
+      }
     }
 
     // Save user message
@@ -55,10 +57,11 @@ export async function POST(request: NextRequest) {
     // Generate image using Lao Zhang API
     const client = createLaoZhangClient(apiKey);
     const result = await generateImage(client, {
-      prompt: finalPrompt,
+      prompt: prompt,
       model: model as any,
       imageSize: imageSize as any,
       aspectRatio: aspectRatio as any,
+      referenceImage: referenceImageData,
     });
 
     // Save assistant message
