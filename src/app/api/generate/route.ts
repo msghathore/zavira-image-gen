@@ -8,8 +8,9 @@ export async function POST(request: NextRequest) {
     const {
       prompt,
       conversationId,
-      model = 'nano-banana-pro',
-      size = '1024x1024',
+      model = 'nano-banana-2',
+      imageSize = '4K',
+      aspectRatio = '1:1',
       referenceImageId
     } = body;
 
@@ -56,7 +57,8 @@ export async function POST(request: NextRequest) {
     const result = await generateImage(client, {
       prompt: finalPrompt,
       model: model as any,
-      size: size as any,
+      imageSize: imageSize as any,
+      aspectRatio: aspectRatio as any,
     });
 
     // Save assistant message

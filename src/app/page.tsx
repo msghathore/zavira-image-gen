@@ -18,7 +18,7 @@ export default function Home() {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [showGallery, setShowGallery] = useState(false);
   const [conversationImages, setConversationImages] = useState<GeneratedImage[]>([]);
-  const [selectedModel, setSelectedModel] = useState<ImageModel>('nano-banana-pro');
+  const [selectedModel, setSelectedModel] = useState<ImageModel>('nano-banana-2');
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
   // Scroll to bottom when new messages arrive
