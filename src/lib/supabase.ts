@@ -31,23 +31,17 @@ export async function getConversations() {
   const { data, error } = await supabase
     .from('image_conversations')
     .select(`
-      *,
-      generated_images (
-        id,
-        image_url,
-        prompt,
-        created_at
-      )
+      id,
+      title,
+      created_at,
+      updated_at
     `)
-    .order('updated_at', { ascending: false });
+    .order('updated_at', { ascending: false })
+    .limit(50);
 
   if (error) throw error;
 
-  // Add latest image to each conversation
-  return data?.map(conv => ({
-    ...conv,
-    latestImage: conv.generated_images?.[0] || null,
-  }));
+  return data || [];
 }
 
 export async function getConversation(id: string) {
