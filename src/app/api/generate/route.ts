@@ -90,10 +90,10 @@ export async function POST(request: NextRequest) {
     // Only upload if it's base64 data
     if (result.url.startsWith('data:image/')) {
       try {
-        // Generate blurhash and convert to WebP (preserve full resolution for 4K)
+        // Generate blurhash and convert to WebP (NO resize - keep original resolution)
         const optimized = await optimizeBase64ToWebP(result.url, {
-          maxWidth: 4096,  // Preserve 4K resolution
-          quality: 90,     // Higher quality for 4K
+          maxWidth: 99999,  // No limit - preserve original resolution
+          quality: 95,      // Highest quality
         });
 
         blurhash = optimized.blurhash;
