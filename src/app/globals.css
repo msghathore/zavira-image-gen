@@ -32,6 +32,24 @@ body {
   background: #444;
 }
 
+/* Cinema Settings custom scrollbar - Higgsfield style */
+.custom-scrollbar::-webkit-scrollbar {
+  width: 4px;
+}
+
+.custom-scrollbar::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.custom-scrollbar::-webkit-scrollbar-thumb {
+  background: #3a3a3a;
+  border-radius: 2px;
+}
+
+.custom-scrollbar::-webkit-scrollbar-thumb:hover {
+  background: #4a4a4a;
+}
+
 /* Chat message animations */
 @keyframes fadeIn {
   from {

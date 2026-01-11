@@ -511,7 +511,12 @@ export type CameraMovement =
   | 'jib-up'
   | 'jib-down'
   | 'drone-shot'
+  | 'dolly-left'
+  | 'dolly-right'
   | '360-roll';
+
+// Lens intensity (1-4, displayed as 1/4, 2/4, 3/4, 4/4 like Higgsfield)
+export type LensIntensity = 1 | 2 | 3 | 4;
 
 export interface VideoModelInfo {
   id: VideoModel;
@@ -527,7 +532,10 @@ export interface ImageModelInfo {
 }
 
 export interface CinemaSettings {
+  cameraId: string;
   cameraBody: string;
+  lensId: string;
+  lensName: string;
   lensType: string;
   focalLength: number;
   aperture: string;
@@ -567,6 +575,8 @@ export interface VideoGenerateParams {
   aspectRatio: AspectRatio;
   cameraMovement: CameraMovement;
   audioEnabled: boolean;
+  lensEnabled: boolean;
+  lensIntensity: LensIntensity;
   startFrame?: FrameData;
   endFrame?: FrameData;
   cinemaSettings: CinemaSettings;
@@ -608,21 +618,56 @@ const CAMERA_MOVEMENTS: { id: CameraMovement; label: string; video: string }[] =
   { id: 'dolly-out', label: 'Dolly Out', video: '/camera-movements/dolly-out.mp4' },
   { id: 'jib-up', label: 'Jib Up', video: '/camera-movements/jib-up.mp4' },
   { id: 'jib-down', label: 'Jib Down', video: '/camera-movements/jib-down.mp4' },
-  { id: 'drone-shot', label: 'Drone', video: '/camera-movements/drone-shot.mp4' },
+  { id: 'drone-shot', label: 'Drone Shot', video: '/camera-movements/drone-shot.mp4' },
+  { id: 'dolly-left', label: 'Dolly Left', video: '/camera-movements/dolly-left.mp4' },
+  { id: 'dolly-right', label: 'Dolly Right', video: '/camera-movements/dolly-right.mp4' },
   { id: '360-roll', label: '360 Roll', video: '/camera-movements/360-roll.mp4' },
 ];
 
-const CAMERA_BODIES = [
-  'ARRI Alexa 35',
-  'RED Komodo',
-  'ARRI Alexa Mini LF',
-  'Sony Venice 2',
-  'Blackmagic URSA',
-  'Canon C70',
+// Camera bodies with images from Higgsfield CDN
+const CINEMA_CAMERAS: { id: string; name: string; type: 'DIGITAL' | 'FILM'; image: string }[] = [
+  { id: 'red-v-raptor', name: 'Red V-Raptor', type: 'DIGITAL', image: 'https://cdn.higgsfield.ai/cinematic_studio_image_settings/0f8a9222-0cfc-47d5-b4f5-3bc32ebcb61c.webp' },
+  { id: 'arri-alexa-35', name: 'Arri Alexa 35', type: 'DIGITAL', image: 'https://cdn.higgsfield.ai/cinematic_studio_image_settings/8e81e3e7-6bd9-4641-8376-b75483470641.webp' },
+  { id: 'sony-venice', name: 'Sony Venice', type: 'DIGITAL', image: 'https://cdn.higgsfield.ai/cinematic_studio_image_settings/8c984849-288e-4d3c-bba4-4533eeb2c456.webp' },
+  { id: 'panavision-millennium', name: 'Panavision Millennium DXL2', type: 'DIGITAL', image: 'https://cdn.higgsfield.ai/cinematic_studio_image_settings/1aa42cd0-c9b7-4b14-a2f8-1de2d62fc03b.webp' },
+  { id: 'arriflex-16sr', name: 'Arriflex 16SR', type: 'FILM', image: 'https://cdn.higgsfield.ai/cinematic_studio_image_settings/b8137ef3-d8a2-4bf8-b563-440eaa87af9d.webp' },
+  { id: 'imax-film', name: 'IMAX Film Camera', type: 'FILM', image: 'https://cdn.higgsfield.ai/cinematic_studio_image_settings/5a678a0c-23b7-46e8-871e-8b96ee283dfc.webp' },
 ];
 
+// Lenses with images from Higgsfield CDN
+const CINEMA_LENSES: { id: string; name: string; type: 'SPHERICAL' | 'ANAMORPHIC'; image: string }[] = [
+  { id: 'lensbaby', name: 'Lensbaby', type: 'SPHERICAL', image: 'https://cdn.higgsfield.ai/cinematic_studio_image_settings/07c84b99-b5a0-4f19-9841-798de22cc57a.webp' },
+  { id: 'arri-signature', name: 'ARRI Signature Prime', type: 'SPHERICAL', image: 'https://cdn.higgsfield.ai/cinematic_studio_image_settings/0a69bed1-6f50-48d2-8f64-d3690fa126a2.webp' },
+  { id: 'cooke-s4', name: 'Cooke S4', type: 'SPHERICAL', image: 'https://cdn.higgsfield.ai/cinematic_studio_image_settings/a9fbbf10-50f7-4db9-894a-491409bc3528.webp' },
+  { id: 'zeiss-ultra', name: 'Zeiss Ultra Prime', type: 'SPHERICAL', image: 'https://cdn.higgsfield.ai/cinematic_studio_image_settings/dcc886de-f83b-4f9f-8c5f-19f6563aeaf5.webp' },
+  { id: 'canon-k35', name: 'Canon K-35', type: 'SPHERICAL', image: 'https://cdn.higgsfield.ai/cinematic_studio_image_settings/f6771f8e-489b-4e47-8a8f-85fa733c567f.webp' },
+  { id: 'helios', name: 'Helios', type: 'SPHERICAL', image: 'https://cdn.higgsfield.ai/cinematic_studio_image_settings/c79cbb89-46e7-4bda-810b-1adf05a00389.webp' },
+  { id: 'petzval', name: 'Petzval', type: 'SPHERICAL', image: 'https://cdn.higgsfield.ai/cinematic_studio_image_settings/2ff0c7ae-2366-40cb-be0e-9a0a109972e1.webp' },
+  { id: 'laowa-macro', name: 'Laowa Macro', type: 'SPHERICAL', image: 'https://cdn.higgsfield.ai/cinematic_studio_image_settings/40521216-0bd8-4730-a4f0-c137e37fa29c.webp' },
+  { id: 'hawk-vlite', name: 'Hawk V-Lite', type: 'ANAMORPHIC', image: 'https://cdn.higgsfield.ai/cinematic_studio_image_settings/a31b0e2d-1728-47f0-aa27-807dafb6e4ac.webp' },
+  { id: 'panavision-c', name: 'Panavision C-Series', type: 'ANAMORPHIC', image: 'https://cdn.higgsfield.ai/cinematic_studio_image_settings/e01c0a0e-1309-4aca-8d4a-ab66b2ebe4bb.webp' },
+  { id: 'jdc-xtal', name: 'JDC Xtal Xpress', type: 'ANAMORPHIC', image: 'https://cdn.higgsfield.ai/cinematic_studio_image_settings/0d68711a-6379-4be2-9dc0-f9bcae7b59d5.webp' },
+];
+
+// Focal lengths for scrollable picker (like Higgsfield)
+const FOCAL_LENGTHS = [8, 12, 14, 18, 21, 25, 28, 32, 35, 40, 50, 65, 75, 85, 100, 135, 150, 200];
+
+// Aperture values with images from Higgsfield CDN
+const APERTURE_VALUES: { value: string; ringSize: number; image?: string }[] = [
+  { value: 'f/1.4', ringSize: 90, image: 'https://cdn.higgsfield.ai/cinematic_studio_image_settings/e92bf365-50af-453b-abce-db135883d940.webp' },
+  { value: 'f/2', ringSize: 80 },
+  { value: 'f/2.8', ringSize: 70 },
+  { value: 'f/4', ringSize: 60, image: 'https://cdn.higgsfield.ai/cinematic_studio_image_settings/864125a8-1ce4-408d-a61f-fc0d5f973f91.webp' },
+  { value: 'f/5.6', ringSize: 50 },
+  { value: 'f/8', ringSize: 40 },
+  { value: 'f/11', ringSize: 30, image: 'https://cdn.higgsfield.ai/cinematic_studio_image_settings/b230da45-49b8-4d86-83fc-b8e07a629e48.webp' },
+  { value: 'f/16', ringSize: 22 },
+];
+
+// Legacy arrays for backwards compatibility
+const CAMERA_BODIES = CINEMA_CAMERAS.map(c => c.name);
 const LENS_TYPES = ['Spherical', 'Anamorphic', 'Vintage', 'Macro', 'Fisheye'];
-const APERTURES = ['f/1.4', 'f/2', 'f/2.8', 'f/4', 'f/5.6', 'f/8', 'f/11'];
+const APERTURES = APERTURE_VALUES.map(a => a.value);
 const DURATIONS: VideoDuration[] = ['5s', '10s', '15s', '20s'];
 const ASPECT_RATIOS: AspectRatio[] = ['16:9', '9:16', '1:1', '4:3', '21:9'];
 const RESOLUTIONS: Resolution[] = ['720p', '1080p', '2K', '4K'];
@@ -651,6 +696,8 @@ export default function CinemaStudio({
   const [aspectRatio, setAspectRatio] = useState<AspectRatio>('16:9');
   const [resolution, setResolution] = useState<Resolution>('2K');
   const [audioEnabled, setAudioEnabled] = useState(true);
+  const [lensEnabled, setLensEnabled] = useState(false);
+  const [lensIntensity, setLensIntensity] = useState<LensIntensity>(1);
   const [cameraMovement, setCameraMovement] = useState<CameraMovement>('static');
   const [startFrame, setStartFrame] = useState<FrameData | null>(null);
   const [endFrame, setEndFrame] = useState<FrameData | null>(null);
@@ -661,13 +708,17 @@ export default function CinemaStudio({
   const [uploadedImage, setUploadedImage] = useState<string | null>(null);
   const [styleReference, setStyleReference] = useState<string | null>(null);
 
-  // Cinema Settings
+  // Cinema Settings (Higgsfield-style)
   const [cinemaSettings, setCinemaSettings] = useState<CinemaSettings>({
-    cameraBody: 'ARRI Alexa 35',
-    lensType: 'Spherical',
-    focalLength: 35,
-    aperture: 'f/2.8',
+    cameraId: 'red-v-raptor',
+    cameraBody: 'Red V-Raptor',
+    lensId: 'lensbaby',
+    lensName: 'Lensbaby',
+    lensType: 'SPHERICAL',
+    focalLength: 8,
+    aperture: 'f/1.4',
   });
+  const [cinemaSettingsTab, setCinemaSettingsTab] = useState<'all' | 'recommended'>('all');
 
   // UI State
   const [showMovements, setShowMovements] = useState(false);
@@ -736,6 +787,8 @@ export default function CinemaStudio({
         aspectRatio,
         cameraMovement,
         audioEnabled,
+        lensEnabled,
+        lensIntensity,
         startFrame: startFrame || undefined,
         endFrame: endFrame || undefined,
         cinemaSettings,
@@ -744,7 +797,7 @@ export default function CinemaStudio({
     } else if (mode === 'image' && onImageGenerate) {
       await onImageGenerate(prompt, imageModel, aspectRatio, uploadedImage || undefined, styleReference || undefined);
     }
-  }, [mode, prompt, videoModel, imageModel, duration, aspectRatio, cameraMovement, audioEnabled, startFrame, endFrame, cinemaSettings, resolution, uploadedImage, styleReference, onVideoGenerate, onImageGenerate]);
+  }, [mode, prompt, videoModel, imageModel, duration, aspectRatio, cameraMovement, audioEnabled, lensEnabled, lensIntensity, startFrame, endFrame, cinemaSettings, resolution, uploadedImage, styleReference, onVideoGenerate, onImageGenerate]);
 
   const selectedVideoModel = VIDEO_MODELS.find(m => m.id === videoModel);
   const selectedImageModel = IMAGE_MODELS.find(m => m.id === imageModel);
@@ -1207,6 +1260,56 @@ export default function CinemaStudio({
                 )}
               </button>
 
+              {/* Lens Effect Toggle (Higgsfield-style) */}
+              <button
+                onClick={() => setLensEnabled(!lensEnabled)}
+                className={`p-2 rounded-lg transition-colors ${
+                  lensEnabled ? 'bg-lime-500 text-black' : 'bg-zinc-800 text-zinc-400 hover:bg-zinc-700'
+                }`}
+                title={lensEnabled ? 'Lens Effect On' : 'Lens Effect Off'}
+              >
+                {/* Aperture/Iris Icon */}
+                <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}>
+                  <circle cx="12" cy="12" r="10" />
+                  <path d="M12 2v4M12 18v4M2 12h4M18 12h4" />
+                  <circle cx="12" cy="12" r="4" />
+                  <path d="M14.5 9.5L19 5M9.5 14.5L5 19M14.5 14.5L19 19M9.5 9.5L5 5" />
+                </svg>
+              </button>
+
+              {/* Lens Intensity Control (1/4 to 4/4 like Higgsfield) */}
+              {lensEnabled && (
+                <div className="flex items-center gap-1 bg-zinc-800 rounded-lg px-1">
+                  <button
+                    onClick={() => setLensIntensity(prev => Math.max(1, prev - 1) as LensIntensity)}
+                    disabled={lensIntensity === 1}
+                    className={`p-1.5 rounded transition-colors ${
+                      lensIntensity === 1 ? 'text-zinc-600 cursor-not-allowed' : 'text-zinc-400 hover:text-white hover:bg-zinc-700'
+                    }`}
+                    title="Decrease Lens Intensity"
+                  >
+                    <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}>
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M20 12H4" />
+                    </svg>
+                  </button>
+                  <span className="text-xs font-medium text-white min-w-[28px] text-center">
+                    {lensIntensity}/4
+                  </span>
+                  <button
+                    onClick={() => setLensIntensity(prev => Math.min(4, prev + 1) as LensIntensity)}
+                    disabled={lensIntensity === 4}
+                    className={`p-1.5 rounded transition-colors ${
+                      lensIntensity === 4 ? 'text-zinc-600 cursor-not-allowed' : 'text-zinc-400 hover:text-white hover:bg-zinc-700'
+                    }`}
+                    title="Increase Lens Intensity"
+                  >
+                    <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}>
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M12 4v16m8-8H4" />
+                    </svg>
+                  </button>
+                </div>
+              )}
+
               {/* Resolution */}
               <select
                 value={resolution}
@@ -1218,17 +1321,19 @@ export default function CinemaStudio({
                 ))}
               </select>
 
-              {/* Camera Info / Cinema Settings */}
+              {/* Camera Info / Cinema Settings - Higgsfield style summary */}
               <button
                 onClick={() => setShowCinemaSettings(!showCinemaSettings)}
-                className={`px-3 py-2 rounded-lg text-xs font-medium transition-colors flex items-center gap-1.5 ${
+                className={`px-3 py-2 rounded-lg text-xs font-medium transition-colors flex items-center gap-1.5 max-w-[300px] ${
                   showCinemaSettings ? 'bg-lime-500 text-black' : 'bg-zinc-800 hover:bg-zinc-700'
                 }`}
               >
-                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <svg className="w-4 h-4 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z" />
                 </svg>
-                {cinemaSettings.cameraBody}
+                <span className="truncate">
+                  {cinemaSettings.cameraBody} {cinemaSettings.lensName}, {cinemaSettings.focalLength} mm, {cinemaSettings.aperture}
+                </span>
               </button>
 
               {/* Model Selector */}
@@ -1334,78 +1439,262 @@ export default function CinemaStudio({
         </div>
       </div>
 
-      {/* Cinema Settings Modal */}
+      {/* Cinema Settings Panel (Higgsfield-style Wheel Picker) */}
       {showCinemaSettings && (
-        <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50" onClick={() => setShowCinemaSettings(false)}>
-          <div className="bg-zinc-900 border border-zinc-700 rounded-xl p-6 w-96 shadow-2xl" onClick={(e) => e.stopPropagation()}>
-            <div className="flex items-center justify-between mb-4">
-              <h3 className="font-medium">Cinema Settings</h3>
-              <button onClick={() => setShowCinemaSettings(false)} className="p-1 hover:bg-zinc-800 rounded">
-                <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                </svg>
+        <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-50" onClick={() => setShowCinemaSettings(false)}>
+          <div
+            className="bg-[#1a1a1a] border border-zinc-800 rounded-2xl shadow-2xl w-[950px] overflow-hidden"
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* Tabs - Higgsfield style */}
+            <div className="flex items-center gap-2 px-6 py-4">
+              <button
+                onClick={() => setCinemaSettingsTab('all')}
+                className={`px-5 py-2 rounded-full text-sm font-medium transition-all ${
+                  cinemaSettingsTab === 'all'
+                    ? 'bg-zinc-700 text-white'
+                    : 'text-zinc-500 hover:text-zinc-300'
+                }`}
+              >
+                All
+              </button>
+              <button
+                onClick={() => setCinemaSettingsTab('recommended')}
+                className={`px-5 py-2 rounded-full text-sm font-medium transition-all ${
+                  cinemaSettingsTab === 'recommended'
+                    ? 'bg-zinc-700 text-white'
+                    : 'text-zinc-500 hover:text-zinc-300'
+                }`}
+              >
+                Recommended
               </button>
             </div>
 
-            <div className="space-y-4">
-              <div>
-                <label className="text-xs text-zinc-500 mb-1.5 block">Camera Body</label>
-                <select
-                  value={cinemaSettings.cameraBody}
-                  onChange={(e) => setCinemaSettings({ ...cinemaSettings, cameraBody: e.target.value })}
-                  className="w-full bg-zinc-800 border border-zinc-700 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-lime-500"
-                >
-                  {CAMERA_BODIES.map(body => (
-                    <option key={body} value={body}>{body}</option>
-                  ))}
-                </select>
-              </div>
-
-              <div>
-                <label className="text-xs text-zinc-500 mb-1.5 block">Lens Type</label>
-                <div className="flex gap-1.5">
-                  {LENS_TYPES.map(lens => (
-                    <button
-                      key={lens}
-                      onClick={() => setCinemaSettings({ ...cinemaSettings, lensType: lens })}
-                      className={`flex-1 py-1.5 text-xs rounded-md transition-all ${
-                        cinemaSettings.lensType === lens
-                          ? 'bg-lime-500 text-black font-medium'
-                          : 'bg-zinc-800 text-zinc-400 hover:bg-zinc-700'
-                      }`}
-                    >
-                      {lens}
-                    </button>
-                  ))}
+            {/* 4-Column Wheel Picker Grid */}
+            <div className="grid grid-cols-4 gap-0 border-t border-zinc-800">
+              {/* CAMERA Column */}
+              <div className="flex flex-col border-r border-zinc-800">
+                <div className="px-4 py-3 border-b border-zinc-800">
+                  <span className="text-[11px] font-semibold text-zinc-500 tracking-[0.2em] uppercase">Camera</span>
+                </div>
+                <div className="h-[420px] overflow-y-auto custom-scrollbar">
+                  <div className="p-3 space-y-1">
+                    {CINEMA_CAMERAS.map((camera) => {
+                      const isSelected = cinemaSettings.cameraId === camera.id;
+                      return (
+                        <button
+                          key={camera.id}
+                          onClick={() => setCinemaSettings({
+                            ...cinemaSettings,
+                            cameraId: camera.id,
+                            cameraBody: camera.name
+                          })}
+                          className={`w-full p-3 rounded-xl transition-all duration-200 ${
+                            isSelected
+                              ? 'bg-zinc-700/80 ring-1 ring-zinc-600'
+                              : 'hover:bg-zinc-800/60'
+                          }`}
+                        >
+                          {/* Camera Image */}
+                          <div className={`w-full aspect-[4/3] rounded-lg mb-2.5 flex items-center justify-center overflow-hidden ${
+                            isSelected ? 'bg-zinc-600/50' : 'bg-zinc-800/80'
+                          }`}>
+                            <img
+                              src={camera.image}
+                              alt={camera.name}
+                              className="w-full h-full object-contain p-3"
+                              onError={(e) => {
+                                e.currentTarget.style.display = 'none';
+                                (e.currentTarget.nextElementSibling as HTMLElement)?.style.setProperty('display', 'block');
+                              }}
+                            />
+                            <svg className="w-14 h-10 text-zinc-500" style={{ display: 'none' }} fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z" />
+                            </svg>
+                          </div>
+                          {/* Type Badge */}
+                          <div className="flex justify-center mb-1.5">
+                            <span className={`text-[9px] font-bold tracking-wider px-2 py-0.5 rounded ${
+                              camera.type === 'DIGITAL'
+                                ? 'bg-zinc-600/80 text-zinc-300'
+                                : 'bg-amber-900/40 text-amber-400'
+                            }`}>
+                              {camera.type}
+                            </span>
+                          </div>
+                          {/* Camera Name */}
+                          <p className={`text-xs font-medium text-center ${isSelected ? 'text-white' : 'text-zinc-400'}`}>
+                            {camera.name}
+                          </p>
+                        </button>
+                      );
+                    })}
+                  </div>
                 </div>
               </div>
 
-              <div>
-                <div className="flex justify-between mb-1.5">
-                  <label className="text-xs text-zinc-500">Focal Length</label>
-                  <span className="text-xs text-lime-500 font-medium">{cinemaSettings.focalLength}mm</span>
+              {/* LENS Column */}
+              <div className="flex flex-col border-r border-zinc-800">
+                <div className="px-4 py-3 border-b border-zinc-800">
+                  <span className="text-[11px] font-semibold text-zinc-500 tracking-[0.2em] uppercase">Lens</span>
                 </div>
-                <input
-                  type="range"
-                  min="14"
-                  max="200"
-                  value={cinemaSettings.focalLength}
-                  onChange={(e) => setCinemaSettings({ ...cinemaSettings, focalLength: parseInt(e.target.value) })}
-                  className="w-full h-1.5 bg-zinc-700 rounded-lg appearance-none cursor-pointer accent-lime-500"
-                />
+                <div className="h-[420px] overflow-y-auto custom-scrollbar">
+                  <div className="p-3 space-y-1">
+                    {CINEMA_LENSES.map((lens) => {
+                      const isSelected = cinemaSettings.lensId === lens.id;
+                      return (
+                        <button
+                          key={lens.id}
+                          onClick={() => setCinemaSettings({
+                            ...cinemaSettings,
+                            lensId: lens.id,
+                            lensName: lens.name,
+                            lensType: lens.type
+                          })}
+                          className={`w-full p-3 rounded-xl transition-all duration-200 ${
+                            isSelected
+                              ? 'bg-zinc-700/80 ring-1 ring-zinc-600'
+                              : 'hover:bg-zinc-800/60'
+                          }`}
+                        >
+                          {/* Lens Image */}
+                          <div className={`w-full aspect-[4/3] rounded-lg mb-2.5 flex items-center justify-center overflow-hidden ${
+                            isSelected ? 'bg-zinc-600/50' : 'bg-zinc-800/80'
+                          }`}>
+                            <img
+                              src={lens.image}
+                              alt={lens.name}
+                              className="w-full h-full object-contain p-3"
+                              onError={(e) => {
+                                e.currentTarget.style.display = 'none';
+                                (e.currentTarget.nextElementSibling as HTMLElement)?.style.setProperty('display', 'block');
+                              }}
+                            />
+                            <svg className="w-12 h-12 text-zinc-500" style={{ display: 'none' }} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.5}>
+                              <circle cx="12" cy="12" r="9" />
+                              <circle cx="12" cy="12" r="5" />
+                              <circle cx="12" cy="12" r="2" />
+                            </svg>
+                          </div>
+                          {/* Type Badge */}
+                          <div className="flex justify-center mb-1.5">
+                            <span className={`text-[9px] font-bold tracking-wider px-2 py-0.5 rounded ${
+                              lens.type === 'SPHERICAL'
+                                ? 'bg-zinc-600/80 text-zinc-300'
+                                : 'bg-blue-900/40 text-blue-400'
+                            }`}>
+                              {lens.type}
+                            </span>
+                          </div>
+                          {/* Lens Name */}
+                          <p className={`text-xs font-medium text-center ${isSelected ? 'text-white' : 'text-zinc-400'}`}>
+                            {lens.name}
+                          </p>
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
               </div>
 
-              <div>
-                <label className="text-xs text-zinc-500 mb-1.5 block">Aperture</label>
-                <select
-                  value={cinemaSettings.aperture}
-                  onChange={(e) => setCinemaSettings({ ...cinemaSettings, aperture: e.target.value })}
-                  className="w-full bg-zinc-800 border border-zinc-700 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-lime-500"
-                >
-                  {APERTURES.map(ap => (
-                    <option key={ap} value={ap}>{ap}</option>
-                  ))}
-                </select>
+              {/* FOCAL LENGTH Column */}
+              <div className="flex flex-col border-r border-zinc-800">
+                <div className="px-4 py-3 border-b border-zinc-800">
+                  <span className="text-[11px] font-semibold text-zinc-500 tracking-[0.2em] uppercase">Focal Length</span>
+                </div>
+                <div className="h-[420px] overflow-y-auto custom-scrollbar">
+                  <div className="p-3 space-y-1">
+                    {FOCAL_LENGTHS.map((fl) => {
+                      const isSelected = cinemaSettings.focalLength === fl;
+                      return (
+                        <button
+                          key={fl}
+                          onClick={() => setCinemaSettings({ ...cinemaSettings, focalLength: fl })}
+                          className={`w-full py-5 px-4 rounded-xl transition-all duration-200 ${
+                            isSelected
+                              ? 'bg-zinc-700/80 ring-1 ring-zinc-600'
+                              : 'hover:bg-zinc-800/60'
+                          }`}
+                        >
+                          <div className="text-center">
+                            <span className={`text-4xl font-bold ${isSelected ? 'text-white' : 'text-zinc-500'}`}>
+                              {fl}
+                            </span>
+                            <p className={`text-xs mt-1 ${isSelected ? 'text-zinc-300' : 'text-zinc-600'}`}>mm</p>
+                          </div>
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+              </div>
+
+              {/* APERTURE Column */}
+              <div className="flex flex-col">
+                <div className="px-4 py-3 border-b border-zinc-800">
+                  <span className="text-[11px] font-semibold text-zinc-500 tracking-[0.2em] uppercase">Aperture</span>
+                </div>
+                <div className="h-[420px] overflow-y-auto custom-scrollbar">
+                  <div className="p-3 space-y-1">
+                    {APERTURE_VALUES.map((ap) => {
+                      const isSelected = cinemaSettings.aperture === ap.value;
+                      return (
+                        <button
+                          key={ap.value}
+                          onClick={() => setCinemaSettings({ ...cinemaSettings, aperture: ap.value })}
+                          className={`w-full p-3 rounded-xl transition-all duration-200 ${
+                            isSelected
+                              ? 'bg-zinc-700/80 ring-1 ring-zinc-600'
+                              : 'hover:bg-zinc-800/60'
+                          }`}
+                        >
+                          {/* Aperture Ring Visual - Higgsfield style iris */}
+                          <div className="flex items-center justify-center mb-2">
+                            <div className="relative w-16 h-16">
+                              {/* Outer lens ring */}
+                              <div className={`absolute inset-0 rounded-full border-[3px] ${
+                                isSelected ? 'border-zinc-500' : 'border-zinc-700'
+                              }`} />
+                              {/* Iris blades simulation */}
+                              <svg className="absolute inset-0 w-full h-full" viewBox="0 0 64 64">
+                                {/* 8 aperture blades */}
+                                {[...Array(8)].map((_, i) => {
+                                  const angle = (i * 45 * Math.PI) / 180;
+                                  const innerRadius = (ap.ringSize / 100) * 20;
+                                  const outerRadius = 28;
+                                  const x1 = 32 + Math.cos(angle) * innerRadius;
+                                  const y1 = 32 + Math.sin(angle) * innerRadius;
+                                  const x2 = 32 + Math.cos(angle + 0.35) * outerRadius;
+                                  const y2 = 32 + Math.sin(angle + 0.35) * outerRadius;
+                                  const x3 = 32 + Math.cos(angle - 0.35) * outerRadius;
+                                  const y3 = 32 + Math.sin(angle - 0.35) * outerRadius;
+                                  return (
+                                    <polygon
+                                      key={i}
+                                      points={`${x1},${y1} ${x2},${y2} ${x3},${y3}`}
+                                      className={isSelected ? 'fill-zinc-600' : 'fill-zinc-700'}
+                                    />
+                                  );
+                                })}
+                                {/* Center opening */}
+                                <circle
+                                  cx="32"
+                                  cy="32"
+                                  r={(ap.ringSize / 100) * 20}
+                                  className={isSelected ? 'fill-zinc-900' : 'fill-[#1a1a1a]'}
+                                />
+                              </svg>
+                            </div>
+                          </div>
+                          {/* F-stop Value */}
+                          <p className={`text-sm font-medium text-center ${isSelected ? 'text-white' : 'text-zinc-500'}`}>
+                            {ap.value}
+                          </p>
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
               </div>
             </div>
           </div>
