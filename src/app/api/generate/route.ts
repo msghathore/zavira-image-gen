@@ -63,6 +63,7 @@ export async function POST(request: NextRequest) {
     const userMessage = await addMessage(convId, 'user', prompt);
 
     // Generate image using Lao Zhang API
+    console.log(`🎨 Generating image - Model: ${model}, Size: ${imageSize}, Aspect: ${aspectRatio}`);
     const client = createLaoZhangClient(apiKey);
     const result = await generateImage(client, {
       prompt: prompt,
@@ -72,6 +73,7 @@ export async function POST(request: NextRequest) {
       referenceImage: referenceImageData,
       styleReference: styleReference,
     });
+    console.log(`✅ Image generated - URL length: ${result.url?.length || 0} chars`);
 
     // Save assistant message
     const assistantMessage = await addMessage(

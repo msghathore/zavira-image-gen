@@ -629,7 +629,7 @@ export interface GeneratedContent {
 }
 
 export interface CinemaStudioProps {
-  onImageGenerate?: (prompt: string, model: ImageModel, aspectRatio: AspectRatio, uploadedImage?: string, styleReference?: string) => Promise<void>;
+  onImageGenerate?: (prompt: string, model: ImageModel, aspectRatio: AspectRatio, imageSize: Resolution, uploadedImage?: string, styleReference?: string) => Promise<void>;
   onVideoGenerate?: (state: VideoGenerateParams) => Promise<void>;
   isLoading?: boolean;
   generatedContent?: GeneratedContent[];
@@ -762,7 +762,7 @@ export default function CinemaStudio({
   const [videoModel, setVideoModel] = useState<VideoModel>('sora-2-pro');
   const [duration, setDuration] = useState<VideoDuration>('5s');
   const [aspectRatio, setAspectRatio] = useState<AspectRatio>('16:9');
-  const [resolution, setResolution] = useState<Resolution>('2K');
+  const [resolution, setResolution] = useState<Resolution>('4K');
   const [audioEnabled, setAudioEnabled] = useState(true);
   const [lensEnabled, setLensEnabled] = useState(false);
   const [lensIntensity, setLensIntensity] = useState<LensIntensity>(1);
@@ -922,7 +922,7 @@ export default function CinemaStudio({
         resolution,
       });
     } else if (mode === 'image' && onImageGenerate) {
-      await onImageGenerate(prompt, imageModel, aspectRatio, uploadedImage || undefined, styleReference || undefined);
+      await onImageGenerate(prompt, imageModel, aspectRatio, resolution, uploadedImage || undefined, styleReference || undefined);
     }
   }, [mode, prompt, videoModel, imageModel, duration, aspectRatio, cameraMovement, audioEnabled, lensEnabled, lensIntensity, startFrame, endFrame, cinemaSettings, resolution, uploadedImage, styleReference, onVideoGenerate, onImageGenerate]);
 

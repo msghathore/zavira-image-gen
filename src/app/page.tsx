@@ -6,6 +6,7 @@ import CinemaStudio, {
   GeneratedContent,
   ImageModel,
   AspectRatio,
+  Resolution,
   Conversation,
 } from '@/components/CinemaStudio';
 
@@ -93,6 +94,7 @@ export default function Home() {
     prompt: string,
     model: ImageModel,
     aspectRatio: AspectRatio,
+    imageSize: Resolution,
     uploadedImage?: string,
     styleReference?: string
   ) => {
@@ -107,6 +109,7 @@ export default function Home() {
           conversationId,
           model,
           aspectRatio,
+          imageSize,
           uploadedImage,
           styleReference,
         }),
