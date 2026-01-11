@@ -756,20 +756,79 @@ export default function CinemaStudio({
     reader.readAsDataURL(file);
   }, []);
 
-  const handleImageUpload = useCallback((e: React.ChangeEvent<HTMLInputElement>, isStyle: boolean) => {
+  // Compress image to reduce size for API (max 1MB, max 1024px)
+  const compressImage = useCallback((file: File, maxWidth = 1024, maxHeight = 1024, quality = 0.8): Promise<string> => {
+    return new Promise((resolve, reject) => {
+      const img = new window.Image();
+      img.onload = () => {
+        // Calculate new dimensions
+        let width = img.width;
+        let height = img.height;
+
+        if (width > maxWidth) {
+          height = (height * maxWidth) / width;
+          width = maxWidth;
+        }
+        if (height > maxHeight) {
+          width = (width * maxHeight) / height;
+          height = maxHeight;
+        }
+
+        // Create canvas and draw resized image
+        const canvas = document.createElement('canvas');
+        canvas.width = width;
+        canvas.height = height;
+        const ctx = canvas.getContext('2d');
+        if (!ctx) {
+          reject(new Error('Failed to get canvas context'));
+          return;
+        }
+        ctx.drawImage(img, 0, 0, width, height);
+
+        // Convert to base64 with compression
+        const compressedBase64 = canvas.toDataURL('image/jpeg', quality);
+        console.log(`Image compressed: ${file.size} bytes -> ~${Math.round(compressedBase64.length * 0.75)} bytes`);
+        resolve(compressedBase64);
+      };
+      img.onerror = () => reject(new Error('Failed to load image'));
+
+      // Read file as data URL
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        img.src = e.target?.result as string;
+      };
+      reader.onerror = () => reject(new Error('Failed to read file'));
+      reader.readAsDataURL(file);
+    });
+  }, []);
+
+  const handleImageUpload = useCallback(async (e: React.ChangeEvent<HTMLInputElement>, isStyle: boolean) => {
     const file = e.target.files?.[0];
     if (!file) return;
-    const reader = new FileReader();
-    reader.onload = (event) => {
-      const base64 = event.target?.result as string;
+
+    try {
+      // Compress image before storing (reduces API payload size)
+      const compressedBase64 = await compressImage(file);
       if (isStyle) {
-        setStyleReference(base64);
+        setStyleReference(compressedBase64);
       } else {
-        setUploadedImage(base64);
+        setUploadedImage(compressedBase64);
       }
-    };
-    reader.readAsDataURL(file);
-  }, []);
+    } catch (error) {
+      console.error('Failed to compress image:', error);
+      // Fallback to original if compression fails
+      const reader = new FileReader();
+      reader.onload = (event) => {
+        const base64 = event.target?.result as string;
+        if (isStyle) {
+          setStyleReference(base64);
+        } else {
+          setUploadedImage(base64);
+        }
+      };
+      reader.readAsDataURL(file);
+    }
+  }, [compressImage]);
 
   const handleGenerate = useCallback(async () => {
     if (!prompt.trim()) return;
