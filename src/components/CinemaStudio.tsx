@@ -829,10 +829,13 @@ export default function CinemaStudio({
     reader.readAsDataURL(file);
   }, []);
 
-  // Compress image to reduce size for API (max 1MB, max 1024px)
-  const compressImage = useCallback((file: File, maxWidth = 1024, maxHeight = 1024, quality = 0.8): Promise<string> => {
+  // Compress image from source (File or URL) to stay under Vercel's 4.5MB request limit
+  // Using aggressive compression: 700px max, 0.5 quality = ~150-300KB
+  const compressImageFromSource = useCallback((source: File | string, maxWidth = 700, maxHeight = 700, quality = 0.5): Promise<string> => {
     return new Promise((resolve, reject) => {
       const img = new window.Image();
+      img.crossOrigin = 'anonymous'; // Allow CORS for external URLs
+
       img.onload = () => {
         // Calculate new dimensions
         let width = img.width;
@@ -858,22 +861,47 @@ export default function CinemaStudio({
         }
         ctx.drawImage(img, 0, 0, width, height);
 
-        // Convert to base64 with compression
+        // Convert to base64 with aggressive compression
         const compressedBase64 = canvas.toDataURL('image/jpeg', quality);
-        console.log(`Image compressed: ${file.size} bytes -> ~${Math.round(compressedBase64.length * 0.75)} bytes`);
+        const sizeKB = Math.round(compressedBase64.length * 0.75 / 1024);
+        console.log(`Image compressed to ~${sizeKB}KB (${width}x${height})`);
         resolve(compressedBase64);
       };
       img.onerror = () => reject(new Error('Failed to load image'));
 
-      // Read file as data URL
-      const reader = new FileReader();
-      reader.onload = (e) => {
-        img.src = e.target?.result as string;
-      };
-      reader.onerror = () => reject(new Error('Failed to read file'));
-      reader.readAsDataURL(file);
+      // Handle File or URL source
+      if (source instanceof File) {
+        const reader = new FileReader();
+        reader.onload = (e) => {
+          img.src = e.target?.result as string;
+        };
+        reader.onerror = () => reject(new Error('Failed to read file'));
+        reader.readAsDataURL(source);
+      } else {
+        // URL string - load directly
+        img.src = source;
+      }
     });
   }, []);
+
+  // Legacy wrapper for File compression (backwards compatible)
+  const compressImage = useCallback((file: File, maxWidth = 700, maxHeight = 700, quality = 0.5): Promise<string> => {
+    return compressImageFromSource(file, maxWidth, maxHeight, quality);
+  }, [compressImageFromSource]);
+
+  // Compress and set reference image from URL (for "Use as Ref" button)
+  const setReferenceFromUrl = useCallback(async (url: string) => {
+    try {
+      console.log('Compressing reference image from URL...');
+      const compressed = await compressImageFromSource(url);
+      setUploadedImage(compressed);
+    } catch (error) {
+      console.error('Failed to compress reference image:', error);
+      // Fallback: if it's already a small URL, use it directly
+      // But warn user if it fails
+      setUploadedImage(url);
+    }
+  }, [compressImageFromSource]);
 
   const handleImageUpload = useCallback(async (e: React.ChangeEvent<HTMLInputElement>, isStyle: boolean) => {
     const file = e.target.files?.[0];
@@ -1090,7 +1118,7 @@ export default function CinemaStudio({
             <ConversationView
               content={generatedContent}
               onExpand={(url) => setExpandedImage(url)}
-              onSetReference={(url) => setUploadedImage(url)}
+              onSetReference={setReferenceFromUrl}
             />
           ) : (
             <div className="flex-1 flex items-center justify-center p-8">
@@ -1212,7 +1240,7 @@ export default function CinemaStudio({
                   key={content.id}
                   content={content}
                   onExpand={(url) => setExpandedImage(url)}
-                  onSetReference={(url) => setUploadedImage(url)}
+                  onSetReference={setReferenceFromUrl}
                 />
               ))}
               {generatedContent.length === 0 && (
