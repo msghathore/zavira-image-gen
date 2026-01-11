@@ -45,58 +45,48 @@ export async function getConversations() {
 }
 
 export async function getConversation(id: string) {
-  const { data, error } = await supabase
+  // Fetch conversation details
+  const { data: conversation, error: convError } = await supabase
     .from('image_conversations')
-    .select(`
-      id,
-      title,
-      created_at,
-      updated_at,
-      image_messages (
-        id,
-        conversation_id,
-        role,
-        content,
-        created_at,
-        generated_images (
-          id,
-          message_id,
-          conversation_id,
-          image_url,
-          prompt,
-          revised_prompt,
-          model,
-          created_at
-        ),
-        generated_videos (
-          id,
-          message_id,
-          conversation_id,
-          video_url,
-          prompt,
-          model,
-          duration,
-          aspect_ratio,
-          camera_movement,
-          created_at
-        )
-      )
-    `)
+    .select('id, title, created_at, updated_at')
     .eq('id', id)
     .single();
 
-  if (error) throw error;
+  if (convError) throw convError;
 
-  // Sort messages by created_at and format with images/videos
-  const sortedMessages = (data.image_messages || [])
-    .sort((a: any, b: any) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime())
-    .map((msg: any) => ({
-      ...msg,
-      images: msg.generated_images || [],
-      videos: msg.generated_videos || [],
-    }));
+  // Fetch images directly for this conversation
+  const { data: images, error: imgError } = await supabase
+    .from('generated_images')
+    .select('id, message_id, conversation_id, image_url, prompt, revised_prompt, model, created_at')
+    .eq('conversation_id', id)
+    .order('created_at', { ascending: true });
 
-  return { ...data, messages: sortedMessages };
+  if (imgError) throw imgError;
+
+  // Fetch videos directly for this conversation
+  const { data: videos, error: vidError } = await supabase
+    .from('generated_videos')
+    .select('id, message_id, conversation_id, video_url, prompt, model, duration, aspect_ratio, camera_movement, created_at')
+    .eq('conversation_id', id)
+    .order('created_at', { ascending: true });
+
+  if (vidError) throw vidError;
+
+  // Create pseudo-messages from images and videos for the UI
+  const messages = [
+    ...(images || []).map((img: any) => ({
+      id: img.message_id || img.id,
+      images: [img],
+      videos: [],
+    })),
+    ...(videos || []).map((vid: any) => ({
+      id: vid.message_id || vid.id,
+      images: [],
+      videos: [vid],
+    })),
+  ];
+
+  return { ...conversation, messages };
 }
 
 // Load single image data on demand
