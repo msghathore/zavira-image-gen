@@ -89,7 +89,7 @@ export default function Home() {
     }
   };
 
-  // Handle image generation
+  // Handle image generation with streaming response
   const handleImageGenerate = useCallback(async (
     prompt: string,
     model: ImageModel,
@@ -115,40 +115,65 @@ export default function Home() {
         }),
       });
 
-      // Handle non-OK responses properly
       if (!res.ok) {
-        const errorText = await res.text();
-        // Try to parse as JSON, fallback to text error
-        try {
-          const errorJson = JSON.parse(errorText);
-          throw new Error(errorJson.error || `Server error: ${res.status}`);
-        } catch {
-          throw new Error(errorText || `Server error: ${res.status}`);
+        throw new Error(`Server error: ${res.status}`);
+      }
+
+      // Handle streaming response (NDJSON format)
+      const reader = res.body?.getReader();
+      if (!reader) {
+        throw new Error('No response body');
+      }
+
+      const decoder = new TextDecoder();
+      let buffer = '';
+
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+
+        buffer += decoder.decode(value, { stream: true });
+        const lines = buffer.split('\n');
+        buffer = lines.pop() || ''; // Keep incomplete line in buffer
+
+        for (const line of lines) {
+          if (!line.trim()) continue;
+
+          try {
+            const data = JSON.parse(line);
+
+            // Handle error
+            if (data.error) {
+              throw new Error(data.error);
+            }
+
+            // Handle status updates (optional: could show progress)
+            if (data.status) {
+              console.log(`Generation status: ${data.status} - ${data.message}`);
+            }
+
+            // Handle final success response
+            if (data.success && data.image) {
+              // Update conversation ID if new
+              if (!conversationId && data.conversationId) {
+                setConversationId(data.conversationId);
+                fetchConversations();
+              }
+
+              // Add to generated content
+              const newContent: GeneratedContent = {
+                id: data.image.id,
+                type: 'image',
+                url: data.image.url || data.image.image_url,
+                prompt,
+                created_at: new Date().toISOString(),
+              };
+              setGeneratedContent(prev => [newContent, ...prev]);
+            }
+          } catch (parseError) {
+            console.error('Failed to parse stream line:', line, parseError);
+          }
         }
-      }
-
-      const data = await res.json();
-
-      if (data.error) {
-        throw new Error(data.error);
-      }
-
-      // Update conversation ID if new
-      if (!conversationId && data.conversationId) {
-        setConversationId(data.conversationId);
-        fetchConversations(); // Refresh list
-      }
-
-      // Add to generated content
-      if (data.image) {
-        const newContent: GeneratedContent = {
-          id: data.image.id,
-          type: 'image',
-          url: data.image.url || data.image.image_url,
-          prompt,
-          created_at: new Date().toISOString(),
-        };
-        setGeneratedContent(prev => [newContent, ...prev]);
       }
     } catch (error: unknown) {
       console.error('Image generation error:', error);
