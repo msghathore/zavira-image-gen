@@ -1377,30 +1377,74 @@ export default function CinemaStudio({
               </div>
 
               {/* Upload Image */}
-              <button
-                onClick={() => imageUploadRef.current?.click()}
-                className={`p-2 rounded-lg transition-colors ${
-                  uploadedImage ? 'bg-lime-500 text-black' : 'bg-zinc-800 hover:bg-zinc-700'
-                }`}
-                title="Upload Reference Image"
-              >
-                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
-                </svg>
-              </button>
+              <div className="relative">
+                <button
+                  onClick={() => imageUploadRef.current?.click()}
+                  className={`p-2 rounded-lg transition-colors ${
+                    uploadedImage ? 'bg-lime-500 text-black' : 'bg-zinc-800 hover:bg-zinc-700'
+                  }`}
+                  title={uploadedImage ? "Reference image attached - Click to change" : "Upload Reference Image"}
+                >
+                  {uploadedImage ? (
+                    <img
+                      src={uploadedImage}
+                      alt="Reference"
+                      className="w-6 h-6 object-cover rounded"
+                    />
+                  ) : (
+                    <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                    </svg>
+                  )}
+                </button>
+                {uploadedImage && (
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setUploadedImage(null);
+                    }}
+                    className="absolute -top-1 -right-1 w-4 h-4 bg-red-500 rounded-full flex items-center justify-center text-white text-xs hover:bg-red-600"
+                    title="Remove reference image"
+                  >
+                    ×
+                  </button>
+                )}
+              </div>
 
               {/* Style Reference */}
-              <button
-                onClick={() => styleUploadRef.current?.click()}
-                className={`p-2 rounded-lg transition-colors ${
-                  styleReference ? 'bg-lime-500 text-black' : 'bg-zinc-800 hover:bg-zinc-700'
-                }`}
-                title="Upload Style Reference"
-              >
-                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 21a4 4 0 01-4-4V5a2 2 0 012-2h4a2 2 0 012 2v12a4 4 0 01-4 4zm0 0h12a2 2 0 002-2v-4a2 2 0 00-2-2h-2.343M11 7.343l1.657-1.657a2 2 0 012.828 0l2.829 2.829a2 2 0 010 2.828l-8.486 8.485M7 17h.01" />
-                </svg>
-              </button>
+              <div className="relative">
+                <button
+                  onClick={() => styleUploadRef.current?.click()}
+                  className={`p-2 rounded-lg transition-colors ${
+                    styleReference ? 'bg-lime-500 text-black' : 'bg-zinc-800 hover:bg-zinc-700'
+                  }`}
+                  title={styleReference ? "Style reference attached - Click to change" : "Upload Style Reference"}
+                >
+                  {styleReference ? (
+                    <img
+                      src={styleReference}
+                      alt="Style"
+                      className="w-6 h-6 object-cover rounded"
+                    />
+                  ) : (
+                    <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 21a4 4 0 01-4-4V5a2 2 0 012-2h4a2 2 0 012 2v12a4 4 0 01-4 4zm0 0h12a2 2 0 002-2v-4a2 2 0 00-2-2h-2.343M11 7.343l1.657-1.657a2 2 0 012.828 0l2.829 2.829a2 2 0 010 2.828l-8.486 8.485M7 17h.01" />
+                    </svg>
+                  )}
+                </button>
+                {styleReference && (
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setStyleReference(null);
+                    }}
+                    className="absolute -top-1 -right-1 w-4 h-4 bg-red-500 rounded-full flex items-center justify-center text-white text-xs hover:bg-red-600"
+                    title="Remove style reference"
+                  >
+                    ×
+                  </button>
+                )}
+              </div>
 
               {/* Model Selector */}
               <button
