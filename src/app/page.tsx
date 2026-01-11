@@ -112,6 +112,18 @@ export default function Home() {
         }),
       });
 
+      // Handle non-OK responses properly
+      if (!res.ok) {
+        const errorText = await res.text();
+        // Try to parse as JSON, fallback to text error
+        try {
+          const errorJson = JSON.parse(errorText);
+          throw new Error(errorJson.error || `Server error: ${res.status}`);
+        } catch {
+          throw new Error(errorText || `Server error: ${res.status}`);
+        }
+      }
+
       const data = await res.json();
 
       if (data.error) {
@@ -165,6 +177,18 @@ export default function Home() {
           cinemaSettings: params.cinemaSettings,
         }),
       });
+
+      // Handle non-OK responses properly
+      if (!res.ok) {
+        const errorText = await res.text();
+        // Try to parse as JSON, fallback to text error
+        try {
+          const errorJson = JSON.parse(errorText);
+          throw new Error(errorJson.error || `Server error: ${res.status}`);
+        } catch {
+          throw new Error(errorText || `Server error: ${res.status}`);
+        }
+      }
 
       const data = await res.json();
 
