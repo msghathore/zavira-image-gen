@@ -1,7 +1,7 @@
 // Lao Zhang API client for image and video generation
 // Supports Nano Banana 2 with 4K resolution and various video models
 
-export type ImageModel = 'nano-banana-2' | 'nano-banana-pro' | 'gpt-image-1';
+export type ImageModel = 'nano-banana-pro' | 'gpt-image-1';
 
 // Video model types
 export type VideoModel = 'sora-2-pro' | 'kling-2.6' | 'veo-3.1' | 'wan-2.6' | 'seedance-1.5-pro';
@@ -57,13 +57,8 @@ const MODEL_CONFIG: Record<ImageModel, {
   useNativeFormat: boolean;
   supports4K: boolean;
 }> = {
-  'nano-banana-2': {
-    apiModelId: 'gemini-3-pro-image-preview',  // Nano Banana 2 - supports 4K
-    useNativeFormat: true,
-    supports4K: true,
-  },
   'nano-banana-pro': {
-    apiModelId: 'gemini-2.5-flash-image-preview',  // Nano Banana 1 - up to 2K
+    apiModelId: 'gemini-2.5-flash-image-preview',  // Nano Banana Pro - up to 2K
     useNativeFormat: true,
     supports4K: false,
   },
@@ -75,9 +70,8 @@ const MODEL_CONFIG: Record<ImageModel, {
 };
 
 export const AVAILABLE_MODELS: { id: ImageModel; name: string; description: string }[] = [
-  { id: 'nano-banana-2', name: 'Nano Banana 2', description: 'Google Gemini 3 Pro - 4K Support' },
-  { id: 'nano-banana-pro', name: 'Nano Banana Pro', description: 'Google Gemini 2.5 - Fast' },
-  { id: 'gpt-image-1', name: 'GPT Image', description: 'OpenAI - High quality' },
+  { id: 'nano-banana-pro', name: 'Banana Pro', description: 'High Quality' },
+  { id: 'gpt-image-1', name: 'GPT 1.5', description: 'OpenAI DALL-E' },
 ];
 
 // Video model configurations
@@ -175,14 +169,14 @@ export async function generateImage(
 ): Promise<{ url: string; revisedPrompt?: string }> {
   const {
     prompt,
-    model = 'nano-banana-2',
+    model = 'nano-banana-pro',
     imageSize = '4K',
     aspectRatio = '1:1',
     referenceImage,
     styleReference,
   } = options;
 
-  const config = MODEL_CONFIG[model] || MODEL_CONFIG['nano-banana-2'];
+  const config = MODEL_CONFIG[model] || MODEL_CONFIG['nano-banana-pro'];
 
   try {
     let response: Response;

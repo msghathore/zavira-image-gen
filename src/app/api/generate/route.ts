@@ -10,7 +10,7 @@ export async function POST(request: NextRequest) {
     const {
       prompt,
       conversationId,
-      model = 'nano-banana-2',
+      model = 'nano-banana-pro',
       imageSize = '4K',
       aspectRatio = '1:1',
       referenceImageId,

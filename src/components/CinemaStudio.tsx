@@ -594,13 +594,8 @@ const VIDEO_MODELS: VideoModelInfo[] = [
 ];
 
 const IMAGE_MODELS: ImageModelInfo[] = [
-  { id: 'nano-banana-2', name: 'Banana 2', description: 'Fast Generation' },
   { id: 'nano-banana-pro', name: 'Banana Pro', description: 'High Quality' },
-  { id: 'gpt-image-1', name: 'GPT Image', description: 'OpenAI DALL-E' },
-  { id: 'flux-kontext-pro', name: 'Flux Kontext', description: 'Context Aware' },
-  { id: 'flux-1.1-ultra', name: 'Flux Ultra', description: 'Ultra Quality' },
-  { id: 'ideogram-v3', name: 'Ideogram v3', description: 'Text in Images' },
-  { id: 'recraft-v3', name: 'Recraft v3', description: 'Design Focused' },
+  { id: 'gpt-image-1', name: 'GPT 1.5', description: 'OpenAI DALL-E' },
 ];
 
 const CAMERA_MOVEMENTS: { id: CameraMovement; label: string; video: string }[] = [
@@ -703,7 +698,7 @@ export default function CinemaStudio({
   const [endFrame, setEndFrame] = useState<FrameData | null>(null);
 
   // Image Settings
-  const [imageModel, setImageModel] = useState<ImageModel>('nano-banana-2');
+  const [imageModel, setImageModel] = useState<ImageModel>('nano-banana-pro');
   const [imageCount, setImageCount] = useState(1);
   const [uploadedImage, setUploadedImage] = useState<string | null>(null);
   const [styleReference, setStyleReference] = useState<string | null>(null);
