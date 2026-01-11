@@ -15,6 +15,101 @@ if (supabaseUrl && supabaseAnonKey) {
 
 export { supabase };
 
+// Storage operations - upload image and return public URL
+export async function uploadImageToStorage(
+  base64Data: string,
+  conversationId: string,
+  imageId: string
+): Promise<string> {
+  // Extract base64 data and mime type
+  const match = base64Data.match(/^data:([^;]+);base64,(.+)$/);
+  if (!match) {
+    throw new Error('Invalid base64 data URL');
+  }
+
+  const mimeType = match[1];
+  const base64 = match[2];
+  const extension = mimeType.split('/')[1] || 'png';
+  const fileName = `${conversationId}/${imageId}.${extension}`;
+
+  // Convert base64 to Uint8Array
+  const binaryString = atob(base64);
+  const bytes = new Uint8Array(binaryString.length);
+  for (let i = 0; i < binaryString.length; i++) {
+    bytes[i] = binaryString.charCodeAt(i);
+  }
+
+  // Upload to Supabase Storage with CDN cache headers
+  const { data, error } = await supabase.storage
+    .from('generated-images')
+    .upload(fileName, bytes, {
+      contentType: mimeType,
+      upsert: true,
+      cacheControl: '31536000', // 1 year cache (immutable content)
+    });
+
+  if (error) {
+    console.error('Storage upload error:', error);
+    // Fall back to base64 if storage fails
+    return base64Data;
+  }
+
+  // Get public URL
+  const { data: urlData } = supabase.storage
+    .from('generated-images')
+    .getPublicUrl(fileName);
+
+  return urlData.publicUrl;
+}
+
+// Upload video to storage
+export async function uploadVideoToStorage(
+  base64Data: string,
+  conversationId: string,
+  videoId: string
+): Promise<string> {
+  // Extract base64 data and mime type
+  const match = base64Data.match(/^data:([^;]+);base64,(.+)$/);
+  if (!match) {
+    // Not base64, might be a URL already
+    return base64Data;
+  }
+
+  const mimeType = match[1];
+  const base64 = match[2];
+  const extension = mimeType.split('/')[1] || 'mp4';
+  const fileName = `${conversationId}/${videoId}.${extension}`;
+
+  // Convert base64 to Uint8Array
+  const binaryString = atob(base64);
+  const bytes = new Uint8Array(binaryString.length);
+  for (let i = 0; i < binaryString.length; i++) {
+    bytes[i] = binaryString.charCodeAt(i);
+  }
+
+  // Upload to Supabase Storage with CDN cache headers
+  const { data, error } = await supabase.storage
+    .from('generated-videos')
+    .upload(fileName, bytes, {
+      contentType: mimeType,
+      upsert: true,
+      cacheControl: '31536000', // 1 year cache (immutable content)
+    });
+
+  if (error) {
+    console.error('Video storage upload error:', error);
+    // Fall back to original data if storage fails
+    return base64Data;
+  }
+
+  // Get public URL
+  const { data: urlData } = supabase.storage
+    .from('generated-videos')
+    .getPublicUrl(fileName);
+
+  return urlData.publicUrl;
+}
+
 // Database operations
 export async function createConversation(title?: string) {
   const { data, error } = await supabase
@@ -54,19 +149,19 @@ export async function getConversation(id: string) {
 
   if (convError) throw convError;
 
-  // Fetch images directly for this conversation
+  // Fetch images metadata only (NO image_url - that's loaded on demand, but include blurhash for placeholders)
   const { data: images, error: imgError } = await supabase
     .from('generated_images')
-    .select('id, message_id, conversation_id, image_url, prompt, revised_prompt, model, created_at')
+    .select('id, message_id, conversation_id, prompt, revised_prompt, model, created_at, blurhash')
     .eq('conversation_id', id)
     .order('created_at', { ascending: true });
 
   if (imgError) throw imgError;
 
-  // Fetch videos directly for this conversation
+  // Fetch videos metadata only (NO video_url - that's loaded on demand)
   const { data: videos, error: vidError } = await supabase
     .from('generated_videos')
-    .select('id, message_id, conversation_id, video_url, prompt, model, duration, aspect_ratio, camera_movement, created_at')
+    .select('id, message_id, conversation_id, prompt, model, duration, aspect_ratio, camera_movement, created_at')
     .eq('conversation_id', id)
     .order('created_at', { ascending: true });
 
@@ -93,7 +188,7 @@ export async function getConversation(id: string) {
 export async function getImageData(imageId: string) {
   const { data, error } = await supabase
     .from('generated_images')
-    .select('id, image_url')
+    .select('id, image_url, blurhash')
     .eq('id', imageId)
     .single();
 
@@ -125,7 +220,8 @@ export async function saveGeneratedImage(
   imageUrl: string,
   prompt: string,
   revisedPrompt?: string,
-  model: string = 'nano-banana-pro'
+  model: string = 'nano-banana-pro',
+  blurhash?: string
 ) {
   const { data, error } = await supabase
     .from('generated_images')
@@ -136,6 +232,7 @@ export async function saveGeneratedImage(
       prompt,
       revised_prompt: revisedPrompt,
       model,
+      blurhash: blurhash || null,
     })
     .select()
     .single();

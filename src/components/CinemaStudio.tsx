@@ -2,6 +2,481 @@
 
 import { useState, useRef, useCallback, useEffect } from 'react';
 import Image from 'next/image';
+import { useInView } from 'react-intersection-observer';
+import { getCachedImageUrl, preloadImages, isInMemoryCache } from '@/lib/image-cache';
+import { decodeBlurhash } from '@/lib/blurhash-utils';
+
+// ==================== LAZY MEDIA COMPONENT ====================
+
+interface LazyMediaProps {
+  id: string;
+  type: 'image' | 'video';
+  url: string; // May be empty if needs to be loaded
+  prompt: string;
+  className?: string;
+  onClick?: () => void;
+  onUrlLoaded?: (url: string) => void;
+}
+
+function LazyMedia({ id, type, url, prompt, className = '', onClick, onUrlLoaded }: LazyMediaProps) {
+  const [loadedUrl, setLoadedUrl] = useState(url);
+  const [isLoading, setIsLoading] = useState(!url);
+  const [error, setError] = useState(false);
+
+  useEffect(() => {
+    // If URL is provided, use it directly
+    if (url) {
+      setLoadedUrl(url);
+      setIsLoading(false);
+      return;
+    }
+
+    // Otherwise fetch from API
+    const fetchMedia = async () => {
+      try {
+        setIsLoading(true);
+        const endpoint = type === 'image' ? `/api/images/${id}` : `/api/videos/${id}`;
+        const res = await fetch(endpoint);
+        const data = await res.json();
+
+        const mediaUrl = type === 'image'
+          ? data.image?.image_url || data.image?.url
+          : data.video?.video_url || data.video?.url;
+
+        if (mediaUrl) {
+          setLoadedUrl(mediaUrl);
+          onUrlLoaded?.(mediaUrl);
+        } else {
+          setError(true);
+        }
+      } catch (err) {
+        console.error('Failed to load media:', err);
+        setError(true);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    fetchMedia();
+  }, [id, type, url, onUrlLoaded]);
+
+  if (isLoading) {
+    return (
+      <div className={`bg-zinc-800 animate-pulse flex items-center justify-center ${className}`}>
+        <div className="w-6 h-6 border-2 border-lime-500 border-t-transparent rounded-full animate-spin" />
+      </div>
+    );
+  }
+
+  if (error || !loadedUrl) {
+    return (
+      <div className={`bg-zinc-800 flex items-center justify-center ${className}`}>
+        <svg className="w-8 h-8 text-zinc-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+        </svg>
+      </div>
+    );
+  }
+
+  if (type === 'video') {
+    return (
+      <video
+        src={loadedUrl}
+        className={className}
+        muted
+        onClick={onClick}
+      />
+    );
+  }
+
+  return (
+    <Image
+      src={loadedUrl}
+      alt={prompt}
+      fill
+      className={className}
+      onClick={onClick}
+    />
+  );
+}
+
+// ==================== GALLERY ITEM COMPONENT ====================
+
+interface GalleryItemProps {
+  content: GeneratedContent;
+  onExpand: (url: string) => void;
+}
+
+function GalleryItem({ content, onExpand }: GalleryItemProps) {
+  const [loadedUrl, setLoadedUrl] = useState(content.url);
+  const [isLoading, setIsLoading] = useState(!content.url);
+  const [error, setError] = useState(false);
+
+  useEffect(() => {
+    // If URL is provided, use it directly
+    if (content.url) {
+      setLoadedUrl(content.url);
+      setIsLoading(false);
+      return;
+    }
+
+    // Otherwise fetch from API
+    const fetchMedia = async () => {
+      try {
+        setIsLoading(true);
+        const endpoint = content.type === 'image' ? `/api/images/${content.id}` : `/api/videos/${content.id}`;
+        const res = await fetch(endpoint);
+        const data = await res.json();
+
+        const mediaUrl = content.type === 'image'
+          ? data.image?.image_url || data.image?.url
+          : data.video?.video_url || data.video?.url;
+
+        if (mediaUrl) {
+          setLoadedUrl(mediaUrl);
+        } else {
+          setError(true);
+        }
+      } catch (err) {
+        console.error('Failed to load media:', err);
+        setError(true);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    fetchMedia();
+  }, [content.id, content.type, content.url]);
+
+  const handleClick = () => {
+    if (loadedUrl) {
+      onExpand(loadedUrl);
+    }
+  };
+
+  return (
+    <div
+      className="relative aspect-square rounded-lg overflow-hidden cursor-pointer hover:ring-2 hover:ring-lime-500 transition-all"
+      onClick={handleClick}
+    >
+      {isLoading ? (
+        <div className="w-full h-full bg-zinc-800 animate-pulse flex items-center justify-center">
+          <div className="w-6 h-6 border-2 border-lime-500 border-t-transparent rounded-full animate-spin" />
+        </div>
+      ) : error || !loadedUrl ? (
+        <div className="w-full h-full bg-zinc-800 flex items-center justify-center">
+          <svg className="w-6 h-6 text-zinc-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+          </svg>
+        </div>
+      ) : content.type === 'video' ? (
+        <video src={loadedUrl} className="w-full h-full object-cover" muted />
+      ) : (
+        <img src={loadedUrl} alt={content.prompt} className="w-full h-full object-cover" />
+      )}
+      <div className="absolute bottom-0 inset-x-0 bg-gradient-to-t from-black/80 to-transparent p-1.5">
+        <p className="text-[10px] text-white truncate">{content.prompt}</p>
+      </div>
+    </div>
+  );
+}
+
+// ==================== CONVERSATION VIEW COMPONENT ====================
+
+interface ConversationViewProps {
+  content: GeneratedContent[];
+  onExpand: (url: string) => void;
+}
+
+function ConversationView({ content, onExpand }: ConversationViewProps) {
+  const containerRef = useRef<HTMLDivElement>(null);
+
+  // Auto-scroll to bottom when new content is added
+  useEffect(() => {
+    if (containerRef.current) {
+      containerRef.current.scrollTop = containerRef.current.scrollHeight;
+    }
+  }, [content.length]);
+
+  if (content.length === 0) {
+    return null;
+  }
+
+  // Reverse to show oldest first (conversation order)
+  const orderedContent = [...content].reverse();
+
+  // Preload first few images immediately
+  useEffect(() => {
+    const imageUrls = orderedContent
+      .filter(item => item.type === 'image' && item.url && !item.url.startsWith('data:'))
+      .slice(0, 5)
+      .map(item => item.url);
+
+    if (imageUrls.length > 0) {
+      preloadImages(imageUrls);
+    }
+  }, [orderedContent]);
+
+  return (
+    <div ref={containerRef} className="flex-1 overflow-y-auto p-4 space-y-4">
+      {orderedContent.map((item, index) => {
+        // Get next 3 image URLs for preloading
+        const nextUrls = orderedContent
+          .slice(index + 1, index + 4)
+          .filter(i => i.type === 'image' && i.url && !i.url.startsWith('data:'))
+          .map(i => i.url);
+
+        return (
+          <ConversationItem
+            key={item.id}
+            content={item}
+            onExpand={onExpand}
+            nextUrls={nextUrls}
+          />
+        );
+      })}
+    </div>
+  );
+}
+
+// Single conversation item (prompt + image) with BlurHash placeholder and caching
+function ConversationItem({ content, onExpand, nextUrls = [] }: { content: GeneratedContent; onExpand: (url: string) => void; nextUrls?: string[] }) {
+  const [loadedUrl, setLoadedUrl] = useState(content.url);
+  const [cachedUrl, setCachedUrl] = useState<string | null>(null);
+  const [isLoading, setIsLoading] = useState(!content.url);
+  const [imageLoaded, setImageLoaded] = useState(false);
+  const [error, setError] = useState(false);
+
+  // Intersection Observer - preload when approaching viewport
+  const { ref, inView } = useInView({
+    rootMargin: '300px 0px', // Preload 300px before visible
+    triggerOnce: true,
+  });
+
+  // Decode blurhash for placeholder
+  const blurhashPlaceholder = content.blurhash ? decodeBlurhash(content.blurhash, 32, 32) : null;
+
+  // Preload next images when this one comes into view
+  useEffect(() => {
+    if (inView && nextUrls.length > 0) {
+      preloadImages(nextUrls);
+    }
+  }, [inView, nextUrls]);
+
+  useEffect(() => {
+    if (content.url) {
+      setLoadedUrl(content.url);
+      setIsLoading(false);
+
+      // Use cached URL if available (instant from memory/IndexedDB)
+      if (content.type === 'image' && !content.url.startsWith('data:')) {
+        // Check memory cache first (synchronous, instant)
+        if (isInMemoryCache(content.url)) {
+          getCachedImageUrl(content.url).then(setCachedUrl);
+        } else {
+          // Async cache lookup
+          getCachedImageUrl(content.url).then(setCachedUrl);
+        }
+      }
+      return;
+    }
+
+    const fetchMedia = async () => {
+      try {
+        setIsLoading(true);
+        const endpoint = content.type === 'image' ? `/api/images/${content.id}` : `/api/videos/${content.id}`;
+        const res = await fetch(endpoint);
+        const data = await res.json();
+        const mediaUrl = content.type === 'image'
+          ? data.image?.image_url || data.image?.url
+          : data.video?.video_url || data.video?.url;
+        if (mediaUrl) {
+          setLoadedUrl(mediaUrl);
+          // Cache the image URL
+          if (content.type === 'image' && !mediaUrl.startsWith('data:')) {
+            getCachedImageUrl(mediaUrl).then(setCachedUrl);
+          }
+        } else {
+          setError(true);
+        }
+      } catch (err) {
+        setError(true);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+    fetchMedia();
+  }, [content.id, content.type, content.url]);
+
+  const displayUrl = cachedUrl || loadedUrl;
+
+  return (
+    <div ref={ref} className="space-y-2">
+      {/* User prompt */}
+      <div className="flex justify-end">
+        <div className="bg-lime-500/20 border border-lime-500/30 rounded-2xl rounded-tr-sm px-4 py-2 max-w-[80%]">
+          <p className="text-sm text-white">{content.prompt}</p>
+        </div>
+      </div>
+
+      {/* Generated image/video response */}
+      <div className="flex justify-start">
+        <div className="bg-zinc-800 rounded-2xl rounded-tl-sm p-2 max-w-[80%]">
+          {isLoading ? (
+            <div className="relative w-64 h-64 rounded-lg overflow-hidden">
+              {/* BlurHash placeholder or animated pulse */}
+              {blurhashPlaceholder ? (
+                <img
+                  src={blurhashPlaceholder}
+                  alt=""
+                  className="w-full h-full object-cover blur-xl scale-110"
+                  aria-hidden
+                />
+              ) : (
+                <div className="w-full h-full bg-zinc-700 animate-pulse" />
+              )}
+              <div className="absolute inset-0 flex items-center justify-center">
+                <div className="w-8 h-8 border-2 border-lime-500 border-t-transparent rounded-full animate-spin" />
+              </div>
+            </div>
+          ) : error || !displayUrl ? (
+            <div className="w-64 h-64 bg-zinc-700 rounded-lg flex items-center justify-center">
+              <svg className="w-10 h-10 text-zinc-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+              </svg>
+            </div>
+          ) : content.type === 'video' ? (
+            <video
+              src={displayUrl}
+              className="max-w-md rounded-lg cursor-pointer"
+              controls
+              onClick={() => onExpand(displayUrl)}
+            />
+          ) : (
+            <div className="relative max-w-md max-h-96 rounded-lg overflow-hidden">
+              {/* BlurHash placeholder behind image */}
+              {blurhashPlaceholder && !imageLoaded && (
+                <img
+                  src={blurhashPlaceholder}
+                  alt=""
+                  className="absolute inset-0 w-full h-full object-cover blur-xl scale-110"
+                  aria-hidden
+                />
+              )}
+              <img
+                src={displayUrl}
+                alt={content.prompt}
+                className={`max-w-md max-h-96 rounded-lg cursor-pointer hover:opacity-90 transition-all duration-300 ${
+                  imageLoaded ? 'opacity-100' : 'opacity-0'
+                }`}
+                onClick={() => onExpand(displayUrl)}
+                onLoad={() => setImageLoaded(true)}
+              />
+            </div>
+          )}
+          <p className="text-xs text-zinc-500 mt-1 px-1">
+            {content.type === 'video' ? '🎬' : '🖼️'} Generated {new Date(content.created_at).toLocaleTimeString()}
+          </p>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ==================== MAIN PREVIEW COMPONENT ====================
+
+interface MainPreviewProps {
+  content: GeneratedContent;
+  onExpand: (url: string) => void;
+}
+
+function MainPreview({ content, onExpand }: MainPreviewProps) {
+  const [loadedUrl, setLoadedUrl] = useState(content.url);
+  const [isLoading, setIsLoading] = useState(!content.url);
+  const [error, setError] = useState(false);
+
+  useEffect(() => {
+    // If URL is provided, use it directly
+    if (content.url) {
+      setLoadedUrl(content.url);
+      setIsLoading(false);
+      return;
+    }
+
+    // Otherwise fetch from API
+    const fetchMedia = async () => {
+      try {
+        setIsLoading(true);
+        const endpoint = content.type === 'image' ? `/api/images/${content.id}` : `/api/videos/${content.id}`;
+        const res = await fetch(endpoint);
+        const data = await res.json();
+
+        const mediaUrl = content.type === 'image'
+          ? data.image?.image_url || data.image?.url
+          : data.video?.video_url || data.video?.url;
+
+        if (mediaUrl) {
+          setLoadedUrl(mediaUrl);
+        } else {
+          setError(true);
+        }
+      } catch (err) {
+        console.error('Failed to load media:', err);
+        setError(true);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    fetchMedia();
+  }, [content.id, content.type, content.url]);
+
+  if (isLoading) {
+    return (
+      <div className="relative max-w-4xl max-h-full">
+        <div className="w-[600px] h-[400px] bg-zinc-800 animate-pulse rounded-lg flex items-center justify-center">
+          <div className="w-12 h-12 border-4 border-lime-500 border-t-transparent rounded-full animate-spin" />
+        </div>
+      </div>
+    );
+  }
+
+  if (error || !loadedUrl) {
+    return (
+      <div className="relative max-w-4xl max-h-full">
+        <div className="w-[600px] h-[400px] bg-zinc-800 rounded-lg flex items-center justify-center">
+          <div className="text-center">
+            <svg className="w-16 h-16 text-zinc-600 mx-auto mb-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+            </svg>
+            <p className="text-zinc-500">Failed to load media</p>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="relative max-w-4xl max-h-full">
+      {content.type === 'video' ? (
+        <video
+          src={loadedUrl}
+          className="max-w-full max-h-[70vh] rounded-lg shadow-2xl"
+          controls
+          autoPlay
+          loop
+        />
+      ) : (
+        <img
+          src={loadedUrl}
+          alt={content.prompt}
+          className="max-w-full max-h-[70vh] object-contain rounded-lg shadow-2xl cursor-pointer"
+          onClick={() => onExpand(loadedUrl)}
+        />
+      )}
+    </div>
+  );
+}
 
 // ==================== TYPES ====================
 
@@ -69,6 +544,7 @@ export interface GeneratedContent {
   url: string;
   prompt: string;
   created_at: string;
+  blurhash?: string; // BlurHash placeholder for instant loading
 }
 
 export interface CinemaStudioProps {
@@ -427,32 +903,16 @@ export default function CinemaStudio({
           </button>
         </div>
 
-        {/* Center Preview Area */}
-        <div className="flex-1 flex flex-col">
-          {/* Preview Canvas */}
-          <div className="flex-1 flex items-center justify-center p-8 relative">
-            {latestContent ? (
-              <div className="relative max-w-4xl max-h-full">
-                {latestContent.type === 'video' ? (
-                  <video
-                    src={latestContent.url}
-                    className="max-w-full max-h-[70vh] rounded-lg shadow-2xl"
-                    controls
-                    autoPlay
-                    loop
-                  />
-                ) : (
-                  <Image
-                    src={latestContent.url}
-                    alt={latestContent.prompt}
-                    width={1024}
-                    height={1024}
-                    className="max-w-full max-h-[70vh] object-contain rounded-lg shadow-2xl cursor-pointer"
-                    onClick={() => setExpandedImage(latestContent.url)}
-                  />
-                )}
-              </div>
-            ) : (
+        {/* Center Conversation Area */}
+        <div className="flex-1 flex flex-col relative">
+          {/* Conversation View or Empty State */}
+          {generatedContent.length > 0 ? (
+            <ConversationView
+              content={generatedContent}
+              onExpand={(url) => setExpandedImage(url)}
+            />
+          ) : (
+            <div className="flex-1 flex items-center justify-center p-8">
               <div className="text-center">
                 <div className="w-24 h-24 mx-auto mb-6 rounded-2xl bg-gradient-to-br from-lime-400 to-lime-600 flex items-center justify-center">
                   {mode === 'video' ? (
@@ -473,19 +933,19 @@ export default function CinemaStudio({
                   Enter a prompt below and click Generate to create {mode === 'video' ? 'a video' : 'an image'}.
                 </p>
               </div>
-            )}
+            </div>
+          )}
 
-            {/* Loading Overlay */}
-            {isLoading && (
-              <div className="absolute inset-0 bg-black/60 flex items-center justify-center rounded-lg">
-                <div className="text-center">
-                  <div className="w-16 h-16 border-4 border-lime-500 border-t-transparent rounded-full animate-spin mx-auto mb-4" />
-                  <p className="text-lg font-medium">Generating...</p>
-                  <p className="text-sm text-zinc-400">This may take a moment</p>
-                </div>
+          {/* Loading Overlay */}
+          {isLoading && (
+            <div className="absolute inset-0 bg-black/60 flex items-center justify-center rounded-lg z-10">
+              <div className="text-center">
+                <div className="w-16 h-16 border-4 border-lime-500 border-t-transparent rounded-full animate-spin mx-auto mb-4" />
+                <p className="text-lg font-medium">Generating...</p>
+                <p className="text-sm text-zinc-400">This may take a moment</p>
               </div>
-            )}
-          </div>
+            </div>
+          )}
 
           {/* Frame Upload Panel (Video only) */}
           {mode === 'video' && showFrameUpload && (
@@ -567,20 +1027,11 @@ export default function CinemaStudio({
             </div>
             <div className="p-2 grid grid-cols-2 gap-2">
               {generatedContent.map((content) => (
-                <div
+                <GalleryItem
                   key={content.id}
-                  className="relative aspect-square rounded-lg overflow-hidden cursor-pointer hover:ring-2 hover:ring-lime-500 transition-all"
-                  onClick={() => setExpandedImage(content.url)}
-                >
-                  {content.type === 'video' ? (
-                    <video src={content.url} className="w-full h-full object-cover" muted />
-                  ) : (
-                    <Image src={content.url} alt={content.prompt} fill className="object-cover" />
-                  )}
-                  <div className="absolute bottom-0 inset-x-0 bg-gradient-to-t from-black/80 to-transparent p-1.5">
-                    <p className="text-[10px] text-white truncate">{content.prompt}</p>
-                  </div>
-                </div>
+                  content={content}
+                  onExpand={(url) => setExpandedImage(url)}
+                />
               ))}
               {generatedContent.length === 0 && (
                 <div className="col-span-2 py-8 text-center text-zinc-500 text-sm">

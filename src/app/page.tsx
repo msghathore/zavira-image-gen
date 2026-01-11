@@ -32,21 +32,21 @@ export default function Home() {
     }
   };
 
-  // Load a specific conversation
+  // Load a specific conversation (metadata only - images load on demand)
   const loadConversation = async (id: string) => {
     try {
       const res = await fetch(`/api/conversations/${id}`);
       const data = await res.json();
       if (data.conversation) {
         setConversationId(id);
-        // Extract images and videos from messages
+        // Extract images and videos from messages (URLs will be loaded on demand)
         const content: GeneratedContent[] = [];
         data.conversation.messages?.forEach((msg: any) => {
           msg.images?.forEach((img: any) => {
             content.push({
               id: img.id,
               type: 'image',
-              url: img.image_url,
+              url: '', // Will be loaded on demand via /api/images/[id]
               prompt: img.prompt || '',
               created_at: img.created_at,
             });
@@ -55,7 +55,7 @@ export default function Home() {
             content.push({
               id: vid.id,
               type: 'video',
-              url: vid.video_url,
+              url: '', // Will be loaded on demand
               prompt: vid.prompt || '',
               created_at: vid.created_at,
             });

@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createLaoZhangClient, generateImage } from '@/lib/laozhang';
-import { addMessage, saveGeneratedImage, getConversationImages, createConversation } from '@/lib/supabase';
+import { addMessage, saveGeneratedImage, getConversationImages, createConversation, uploadImageToStorage } from '@/lib/supabase';
+import { v4 as uuidv4 } from 'uuid';
+import { generateBlurhashFromBase64, optimizeBase64ToWebP } from '@/lib/server-image-processing';
 
 export async function POST(request: NextRequest) {
   try {
@@ -78,14 +80,45 @@ export async function POST(request: NextRequest) {
       result.revisedPrompt || `Generated image for: ${prompt}`
     );
 
-    // Save generated image
+    // Upload image to Supabase Storage (converts base64 to URL)
+    const imageId = uuidv4();
+    let imageUrl = result.url;
+    let blurhash = '';
+
+    // Only upload if it's base64 data
+    if (result.url.startsWith('data:image/')) {
+      try {
+        // Generate blurhash and optimize to WebP for faster loading
+        const optimized = await optimizeBase64ToWebP(result.url, {
+          maxWidth: 1200,
+          quality: 80,
+        });
+
+        blurhash = optimized.blurhash;
+        console.log(`Image optimized: ${Math.round(optimized.size / 1024)}KB, blurhash: ${blurhash.substring(0, 10)}...`);
+
+        // Upload optimized WebP to storage
+        imageUrl = await uploadImageToStorage(optimized.dataUrl, convId, imageId);
+      } catch (uploadError) {
+        console.error('Storage upload failed, using base64:', uploadError);
+        // Try to at least generate blurhash for the original
+        try {
+          blurhash = await generateBlurhashFromBase64(result.url);
+        } catch {
+          // Ignore blurhash errors
+        }
+      }
+    }
+
+    // Save generated image with storage URL and blurhash
     const savedImage = await saveGeneratedImage(
       assistantMessage.id,
       convId,
-      result.url,
+      imageUrl,
       prompt,
       result.revisedPrompt,
-      model
+      model,
+      blurhash
     );
 
     return NextResponse.json({
@@ -94,7 +127,8 @@ export async function POST(request: NextRequest) {
       message: assistantMessage,
       image: {
         ...savedImage,
-        url: result.url,
+        url: imageUrl,
+        blurhash,
       },
     });
   } catch (error: any) {

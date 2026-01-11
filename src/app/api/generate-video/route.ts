@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createLaoZhangClient, generateVideo, VideoModel, VideoDuration, VideoAspectRatio, CameraMovement } from '@/lib/laozhang';
-import { addMessage, saveGeneratedVideo, createConversation } from '@/lib/supabase';
+import { addMessage, saveGeneratedVideo, createConversation, uploadVideoToStorage } from '@/lib/supabase';
+import { v4 as uuidv4 } from 'uuid';
 
 export async function POST(request: NextRequest) {
   try {
@@ -58,11 +59,24 @@ export async function POST(request: NextRequest) {
         : `Video generation started for: ${prompt} (processing...)`
     );
 
+    // Upload video to storage if it's base64
+    const videoId = uuidv4();
+    let videoUrl = result.url || '';
+
+    if (videoUrl && videoUrl.startsWith('data:video/')) {
+      try {
+        videoUrl = await uploadVideoToStorage(videoUrl, convId, videoId);
+      } catch (uploadError) {
+        console.error('Video storage upload failed:', uploadError);
+        // Fall back to original URL
+      }
+    }
+
     // Save generated video (or placeholder for async generation)
     const savedVideo = await saveGeneratedVideo(
       assistantMessage.id,
       convId,
-      result.url || '', // May be empty if async
+      videoUrl,
       prompt,
       model,
       duration,
