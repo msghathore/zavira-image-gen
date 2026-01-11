@@ -83,19 +83,20 @@ export async function getConversation(id: string) {
       )
     `)
     .eq('id', id)
-    .order('created_at', { foreignTable: 'image_messages', ascending: true })
     .single();
 
   if (error) throw error;
 
-  // Format messages with their images and videos (without base64/video data)
-  const messages = data.image_messages?.map((msg: any) => ({
-    ...msg,
-    images: msg.generated_images || [],
-    videos: msg.generated_videos || [],
-  }));
+  // Sort messages by created_at and format with images/videos
+  const sortedMessages = (data.image_messages || [])
+    .sort((a: any, b: any) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime())
+    .map((msg: any) => ({
+      ...msg,
+      images: msg.generated_images || [],
+      videos: msg.generated_videos || [],
+    }));
 
-  return { ...data, messages };
+  return { ...data, messages: sortedMessages };
 }
 
 // Load single image data on demand
