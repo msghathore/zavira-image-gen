@@ -166,7 +166,7 @@ export default function ChatInput({
   return (
     <div
       className={`relative border-t border-zinc-800 bg-zinc-900/50 p-4 transition-colors ${
-        isDragging ? 'bg-indigo-900/20 border-indigo-500' : ''
+        isDragging ? 'bg-lime-900/20 border-lime-500' : ''
       }`}
       onDrop={handleDrop}
       onDragOver={handleDragOver}
@@ -193,11 +193,11 @@ export default function ChatInput({
 
       {/* Drag overlay */}
       {isDragging && (
-        <div className="absolute inset-0 flex items-center justify-center bg-indigo-900/40 backdrop-blur-sm z-10 pointer-events-none rounded-t-lg">
+        <div className="absolute inset-0 flex items-center justify-center bg-lime-900/40 backdrop-blur-sm z-10 pointer-events-none rounded-t-lg">
           <div className="text-center">
             <svg
               xmlns="http://www.w3.org/2000/svg"
-              className="h-12 w-12 mx-auto text-indigo-400"
+              className="h-12 w-12 mx-auto text-lime-400"
               fill="none"
               viewBox="0 0 24 24"
               stroke="currentColor"
@@ -209,7 +209,7 @@ export default function ChatInput({
                 d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"
               />
             </svg>
-            <p className="mt-2 text-indigo-300 font-medium">Drop image here</p>
+            <p className="mt-2 text-lime-300 font-medium">Drop image here</p>
           </div>
         </div>
       )}
@@ -302,7 +302,7 @@ export default function ChatInput({
                 className="w-12 h-12 rounded object-cover"
               />
               <div className="flex-1 min-w-0">
-                <p className="text-xs text-purple-400 font-medium flex items-center gap-1">
+                <p className="text-xs text-lime-300 font-medium flex items-center gap-1">
                   <svg xmlns="http://www.w3.org/2000/svg" className="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 21a4 4 0 01-4-4V5a2 2 0 012-2h4a2 2 0 012 2v12a4 4 0 01-4 4zm0 0h12a2 2 0 002-2v-4a2 2 0 00-2-2h-2.343M11 7.343l1.657-1.657a2 2 0 012.828 0l2.829 2.829a2 2 0 010 2.828l-8.486 8.485M7 17h.01" />
                   </svg>
@@ -354,7 +354,7 @@ export default function ChatInput({
             className="w-12 h-12 rounded object-cover"
           />
           <div className="flex-1 min-w-0">
-            <p className="text-xs text-indigo-400 font-medium">Editing image:</p>
+            <p className="text-xs text-lime-400 font-medium">Editing image:</p>
             <p className="text-xs text-gray-400 truncate">{selectedImage.prompt}</p>
           </div>
           <button
@@ -442,7 +442,7 @@ export default function ChatInput({
           className={`
             flex-shrink-0 p-3 rounded-xl transition-all border
             ${styleReference
-              ? 'bg-purple-600 border-purple-500 hover:bg-purple-700'
+              ? 'bg-lime-600 border-lime-500 hover:bg-lime-700'
               : 'bg-zinc-800 border-zinc-700 hover:bg-zinc-700'
             }
             ${isLoading ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'}
@@ -503,7 +503,7 @@ export default function ChatInput({
             }
             disabled={isLoading}
             rows={1}
-            className="w-full px-4 py-3 bg-zinc-800 border border-zinc-700 rounded-xl resize-none focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent disabled:opacity-50 disabled:cursor-not-allowed text-sm"
+            className="w-full px-4 py-3 bg-zinc-800 border border-zinc-700 rounded-xl resize-none focus:outline-none focus:ring-2 focus:ring-lime-500 focus:border-transparent disabled:opacity-50 disabled:cursor-not-allowed text-sm"
             style={{ minHeight: '48px', maxHeight: '200px' }}
           />
         </div>
@@ -511,7 +511,7 @@ export default function ChatInput({
         <button
           onClick={handleSubmit}
           disabled={!input.trim() || isLoading}
-          className="flex-shrink-0 p-3 bg-indigo-600 hover:bg-indigo-700 disabled:bg-zinc-700 disabled:cursor-not-allowed rounded-xl transition-colors"
+          className="flex-shrink-0 p-3 bg-lime-500 hover:bg-lime-600 disabled:bg-zinc-700 disabled:cursor-not-allowed rounded-xl transition-colors"
         >
           {isLoading ? (
             <svg

@@ -71,7 +71,7 @@ body {
 
 /* Glow effect for generated images */
 .image-glow {
-  box-shadow: 0 0 20px rgba(99, 102, 241, 0.3);
+  box-shadow: 0 0 20px rgba(163, 230, 53, 0.3);
 }
 
 /* Typing indicator */

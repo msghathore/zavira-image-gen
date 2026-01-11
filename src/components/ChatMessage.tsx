@@ -1,18 +1,19 @@
 'use client';
 
-import { Message, GeneratedImage } from '@/types';
+import { Message, GeneratedImage, GeneratedVideo } from '@/types';
 import Image from 'next/image';
 import { useState, useEffect } from 'react';
 
 interface ChatMessageProps {
   message: Message;
   onImageSelect?: (image: GeneratedImage) => void;
+  onCreateVideoFromImage?: (imageUrl: string) => void;
 }
 
 // Cache for loaded image URLs
 const imageUrlCache: Record<string, string> = {};
 
-export default function ChatMessage({ message, onImageSelect }: ChatMessageProps) {
+export default function ChatMessage({ message, onImageSelect, onCreateVideoFromImage }: ChatMessageProps) {
   const [imageLoaded, setImageLoaded] = useState<Record<string, boolean>>({});
   const [imageUrls, setImageUrls] = useState<Record<string, string>>({});
   const [expandedImage, setExpandedImage] = useState<string | null>(null);
@@ -60,7 +61,7 @@ export default function ChatMessage({ message, onImageSelect }: ChatMessageProps
       <div
         className={`max-w-[85%] ${
           isUser
-            ? 'bg-indigo-600 text-white rounded-2xl rounded-br-md'
+            ? 'bg-lime-500 text-zinc-900 rounded-2xl rounded-br-md'
             : 'bg-zinc-800 text-gray-100 rounded-2xl rounded-bl-md'
         } px-4 py-3`}
       >
@@ -120,9 +121,18 @@ export default function ChatMessage({ message, onImageSelect }: ChatMessageProps
                             e.stopPropagation();
                             if (onImageSelect) onImageSelect({ ...image, image_url: imageUrl });
                           }}
-                          className="px-3 py-1.5 bg-indigo-600 hover:bg-indigo-700 rounded-lg text-xs font-medium transition-colors"
+                          className="px-3 py-1.5 bg-lime-500 hover:bg-lime-600 rounded-lg text-xs font-medium text-zinc-900 transition-colors"
                         >
                           Edit this
+                        </button>
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            if (onCreateVideoFromImage) onCreateVideoFromImage(imageUrl);
+                          }}
+                          className="px-3 py-1.5 bg-lime-500 hover:bg-lime-600 text-zinc-900 rounded-lg text-xs font-medium transition-colors"
+                        >
+                          Create Video
                         </button>
                         <a
                           href={imageUrl}

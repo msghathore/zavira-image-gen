@@ -39,7 +39,7 @@ export default function ImageGallery({ images, onSelect, selectedId }: ImageGall
           key={image.id}
           className={`relative aspect-square rounded-lg overflow-hidden cursor-pointer group transition-all ${
             selectedId === image.id
-              ? 'ring-2 ring-indigo-500 ring-offset-2 ring-offset-zinc-900'
+              ? 'ring-2 ring-lime-500 ring-offset-2 ring-offset-zinc-900'
               : 'hover:opacity-90'
           }`}
           onClick={() => onSelect(image)}
@@ -56,7 +56,7 @@ export default function ImageGallery({ images, onSelect, selectedId }: ImageGall
             </div>
           </div>
           {selectedId === image.id && (
-            <div className="absolute top-2 right-2 bg-indigo-500 rounded-full p-1">
+            <div className="absolute top-2 right-2 bg-lime-500 rounded-full p-1">
               <svg
                 xmlns="http://www.w3.org/2000/svg"
                 className="h-3 w-3"

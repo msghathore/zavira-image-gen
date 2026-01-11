@@ -62,9 +62,22 @@ export async function getConversation(id: string) {
           id,
           message_id,
           conversation_id,
+          image_url,
           prompt,
           revised_prompt,
           model,
+          created_at
+        ),
+        generated_videos (
+          id,
+          message_id,
+          conversation_id,
+          video_url,
+          prompt,
+          model,
+          duration,
+          aspect_ratio,
+          camera_movement,
           created_at
         )
       )
@@ -75,10 +88,11 @@ export async function getConversation(id: string) {
 
   if (error) throw error;
 
-  // Format messages with their images (without base64 data)
+  // Format messages with their images and videos (without base64/video data)
   const messages = data.image_messages?.map((msg: any) => ({
     ...msg,
     images: msg.generated_images || [],
+    videos: msg.generated_videos || [],
   }));
 
   return { ...data, messages };
@@ -166,4 +180,60 @@ export async function updateConversationTitle(id: string, title: string) {
     .eq('id', id);
 
   if (error) throw error;
+}
+
+// Video generation database operations
+export async function saveGeneratedVideo(
+  messageId: string,
+  conversationId: string,
+  videoUrl: string,
+  prompt: string,
+  model: string,
+  duration: string,
+  aspectRatio: string,
+  cameraMovement?: string,
+  startFrameUrl?: string,
+  endFrameUrl?: string
+) {
+  const { data, error } = await supabase
+    .from('generated_videos')
+    .insert({
+      message_id: messageId,
+      conversation_id: conversationId,
+      video_url: videoUrl,
+      prompt,
+      model,
+      duration,
+      aspect_ratio: aspectRatio,
+      camera_movement: cameraMovement,
+      start_frame_url: startFrameUrl,
+      end_frame_url: endFrameUrl,
+    })
+    .select()
+    .single();
+
+  if (error) throw error;
+  return data;
+}
+
+export async function getVideoData(videoId: string) {
+  const { data, error } = await supabase
+    .from('generated_videos')
+    .select('id, video_url, prompt, model, duration, aspect_ratio, camera_movement, start_frame_url, end_frame_url')
+    .eq('id', videoId)
+    .single();
+
+  if (error) throw error;
+  return data;
+}
+
+export async function getConversationVideos(conversationId: string) {
+  const { data, error } = await supabase
+    .from('generated_videos')
+    .select('*')
+    .eq('conversation_id', conversationId)
+    .order('created_at', { ascending: false });
+
+  if (error) throw error;
+  return data;
 }

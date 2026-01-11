@@ -43,7 +43,7 @@ export default function ConversationSidebar({
           <div className="p-4 border-b border-zinc-800">
             <button
               onClick={onNew}
-              className="w-full flex items-center justify-center gap-2 px-4 py-2.5 bg-indigo-600 hover:bg-indigo-700 rounded-lg font-medium transition-colors"
+              className="w-full flex items-center justify-center gap-2 px-4 py-2.5 bg-lime-500 hover:bg-lime-600 rounded-lg font-medium text-zinc-900 transition-colors"
             >
               <svg
                 xmlns="http://www.w3.org/2000/svg"

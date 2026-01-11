@@ -1,7 +1,35 @@
-// Lao Zhang API client for image generation
-// Supports Nano Banana 2 with 4K resolution
+// Lao Zhang API client for image and video generation
+// Supports Nano Banana 2 with 4K resolution and various video models
 
 export type ImageModel = 'nano-banana-2' | 'nano-banana-pro' | 'gpt-image-1';
+
+// Video model types
+export type VideoModel = 'sora-2-pro' | 'kling-2.6' | 'veo-3.1' | 'wan-2.6' | 'seedance-1.5-pro';
+
+export type VideoDuration = '5s' | '10s' | '15s' | '20s';
+export type VideoAspectRatio = '16:9' | '9:16' | '1:1';
+
+export type CameraMovement =
+  | 'static'
+  | 'handheld'
+  | 'zoom_in'
+  | 'zoom_out'
+  | 'pan_left'
+  | 'pan_right'
+  | 'tilt_up'
+  | 'tilt_down'
+  | 'dolly_in'
+  | 'dolly_out'
+  | 'truck_left'
+  | 'truck_right'
+  | 'orbit_left'
+  | 'orbit_right'
+  | 'jib_up'
+  | 'jib_down'
+  | 'drone_shot'
+  | '360_roll'
+  | 'whip_pan'
+  | 'rack_focus';
 
 export interface ImageGenerationOptions {
   prompt: string;
@@ -10,6 +38,17 @@ export interface ImageGenerationOptions {
   aspectRatio?: '1:1' | '16:9' | '9:16' | '4:3' | '3:4';
   referenceImage?: string; // Base64 image data for editing (data:image/... format)
   styleReference?: string; // Base64 image data for style inspiration (data:image/... format)
+}
+
+export interface VideoGenerationOptions {
+  prompt: string;
+  model?: VideoModel;
+  duration?: VideoDuration;
+  aspectRatio?: VideoAspectRatio;
+  startFrame?: string; // Base64 image data for first frame
+  endFrame?: string; // Base64 image data for last frame
+  cameraMovement?: CameraMovement;
+  withAudio?: boolean;
 }
 
 // Model configurations
@@ -39,6 +78,76 @@ export const AVAILABLE_MODELS: { id: ImageModel; name: string; description: stri
   { id: 'nano-banana-2', name: 'Nano Banana 2', description: 'Google Gemini 3 Pro - 4K Support' },
   { id: 'nano-banana-pro', name: 'Nano Banana Pro', description: 'Google Gemini 2.5 - Fast' },
   { id: 'gpt-image-1', name: 'GPT Image', description: 'OpenAI - High quality' },
+];
+
+// Video model configurations
+const VIDEO_MODEL_CONFIG: Record<VideoModel, {
+  apiModelId: string;
+  maxDuration: VideoDuration;
+  supportsAudio: boolean;
+  supportsFrames: boolean;
+}> = {
+  'sora-2-pro': {
+    apiModelId: 'sora-2-pro',
+    maxDuration: '20s',
+    supportsAudio: true,
+    supportsFrames: true,
+  },
+  'kling-2.6': {
+    apiModelId: 'kling-2.6',
+    maxDuration: '15s',
+    supportsAudio: true,
+    supportsFrames: true,
+  },
+  'veo-3.1': {
+    apiModelId: 'veo-3.1',
+    maxDuration: '20s',
+    supportsAudio: true,
+    supportsFrames: true,
+  },
+  'wan-2.6': {
+    apiModelId: 'wan-2.6',
+    maxDuration: '15s',
+    supportsAudio: false,
+    supportsFrames: true,
+  },
+  'seedance-1.5-pro': {
+    apiModelId: 'seedance-1.5-pro',
+    maxDuration: '10s',
+    supportsAudio: true,
+    supportsFrames: false,
+  },
+};
+
+export const AVAILABLE_VIDEO_MODELS: { id: VideoModel; name: string; description: string }[] = [
+  { id: 'sora-2-pro', name: 'Sora 2 Pro', description: 'OpenAI - Premium quality, up to 20s' },
+  { id: 'kling-2.6', name: 'Kling 2.6', description: 'Kuaishou - Fast generation, up to 15s' },
+  { id: 'veo-3.1', name: 'Veo 3.1', description: 'Google - High quality, up to 20s' },
+  { id: 'wan-2.6', name: 'Wan 2.6', description: 'Alibaba - Efficient, up to 15s' },
+  { id: 'seedance-1.5-pro', name: 'Seedance 1.5 Pro', description: 'ByteDance - Dance/motion focused, up to 10s' },
+];
+
+export const CAMERA_MOVEMENTS: { id: CameraMovement; name: string; description: string }[] = [
+  { id: 'static', name: 'Static', description: 'Camera remains fixed in place' },
+  { id: 'handheld', name: 'Handheld', description: 'Natural handheld camera shake' },
+  { id: 'zoom_in', name: 'Zoom In', description: 'Camera zooms closer to subject' },
+  { id: 'zoom_out', name: 'Zoom Out', description: 'Camera zooms away from subject' },
+  { id: 'pan_left', name: 'Pan Left', description: 'Camera rotates horizontally left' },
+  { id: 'pan_right', name: 'Pan Right', description: 'Camera rotates horizontally right' },
+  { id: 'tilt_up', name: 'Tilt Up', description: 'Camera rotates vertically upward' },
+  { id: 'tilt_down', name: 'Tilt Down', description: 'Camera rotates vertically downward' },
+  { id: 'dolly_in', name: 'Dolly In', description: 'Camera moves forward toward subject' },
+  { id: 'dolly_out', name: 'Dolly Out', description: 'Camera moves backward from subject' },
+  { id: 'truck_left', name: 'Truck Left', description: 'Camera moves horizontally left' },
+  { id: 'truck_right', name: 'Truck Right', description: 'Camera moves horizontally right' },
+  { id: 'orbit_left', name: 'Orbit Left', description: 'Camera orbits around subject leftward' },
+  { id: 'orbit_right', name: 'Orbit Right', description: 'Camera orbits around subject rightward' },
+  { id: 'jib_up', name: 'Jib Up', description: 'Camera moves vertically upward' },
+  { id: 'jib_down', name: 'Jib Down', description: 'Camera moves vertically downward' },
+  { id: 'drone_shot', name: 'Drone Shot', description: 'Aerial perspective movement' },
+  { id: '360_roll', name: '360 Roll', description: 'Full rotation around the lens axis' },
+  { id: 'whip_pan', name: 'Whip Pan', description: 'Fast horizontal camera rotation' },
+  { id: 'rack_focus', name: 'Rack Focus', description: 'Focus shift between subjects' },
 ];
 
 export interface LaoZhangClient {
@@ -243,4 +352,177 @@ export function buildEditPrompt(
   }
 
   return contextPrompt;
+}
+
+// Generate video using Lao Zhang API
+export async function generateVideo(
+  client: LaoZhangClient,
+  options: VideoGenerationOptions
+): Promise<{ url: string; taskId?: string; status: 'completed' | 'processing' | 'failed'; revisedPrompt?: string }> {
+  const {
+    prompt,
+    model = 'sora-2-pro',
+    duration = '5s',
+    aspectRatio = '16:9',
+    startFrame,
+    endFrame,
+    cameraMovement,
+    withAudio = false,
+  } = options;
+
+  const config = VIDEO_MODEL_CONFIG[model] || VIDEO_MODEL_CONFIG['sora-2-pro'];
+
+  try {
+    // Build the video generation request
+    const requestBody: Record<string, unknown> = {
+      model: config.apiModelId,
+      prompt: prompt,
+      duration: duration,
+      aspect_ratio: aspectRatio,
+    };
+
+    // Add camera movement to prompt if specified
+    if (cameraMovement && cameraMovement !== 'static') {
+      const cameraDesc = CAMERA_MOVEMENTS.find(c => c.id === cameraMovement)?.name || cameraMovement;
+      requestBody.prompt = `${prompt}. Camera movement: ${cameraDesc}`;
+    }
+
+    // Add audio generation if supported and requested
+    if (withAudio && config.supportsAudio) {
+      requestBody.with_audio = true;
+    }
+
+    // Add start frame if supported and provided
+    if (startFrame && config.supportsFrames) {
+      const frameData = parseDataUrl(startFrame);
+      if (frameData) {
+        requestBody.start_frame = {
+          type: 'image',
+          data: frameData.data,
+          mime_type: frameData.mimeType,
+        };
+      }
+    }
+
+    // Add end frame if supported and provided
+    if (endFrame && config.supportsFrames) {
+      const frameData = parseDataUrl(endFrame);
+      if (frameData) {
+        requestBody.end_frame = {
+          type: 'image',
+          data: frameData.data,
+          mime_type: frameData.mimeType,
+        };
+      }
+    }
+
+    // Make the API request to generate video
+    const response = await fetch('https://api.laozhang.ai/v1/video/generations', {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${client.apiKey}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(requestBody),
+    });
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      console.error('Video API Error:', response.status, errorText);
+      throw new Error(`Video API Error: ${response.status} - ${errorText}`);
+    }
+
+    const data = await response.json();
+
+    // Handle different response formats
+    // Some video APIs return immediately with URL, others return task ID for polling
+    if (data.data?.[0]?.url) {
+      // Direct URL response
+      return {
+        url: data.data[0].url,
+        status: 'completed',
+        revisedPrompt: data.data[0].revised_prompt || prompt,
+      };
+    } else if (data.data?.[0]?.b64_json) {
+      // Base64 video data
+      const mimeType = 'video/mp4';
+      const videoUrl = `data:${mimeType};base64,${data.data[0].b64_json}`;
+      return {
+        url: videoUrl,
+        status: 'completed',
+        revisedPrompt: data.data[0].revised_prompt || prompt,
+      };
+    } else if (data.task_id || data.id) {
+      // Async task - return task ID for polling
+      return {
+        url: '',
+        taskId: data.task_id || data.id,
+        status: 'processing',
+        revisedPrompt: prompt,
+      };
+    } else if (data.url) {
+      // Simple URL response
+      return {
+        url: data.url,
+        status: 'completed',
+        revisedPrompt: prompt,
+      };
+    }
+
+    throw new Error('No video URL or task ID found in response');
+  } catch (error: unknown) {
+    console.error('Video generation error:', error);
+    const errorMessage = error instanceof Error ? error.message : 'Failed to generate video';
+    throw new Error(errorMessage);
+  }
+}
+
+// Check video generation task status (for async generation)
+export async function checkVideoStatus(
+  client: LaoZhangClient,
+  taskId: string
+): Promise<{ url: string; status: 'completed' | 'processing' | 'failed'; error?: string }> {
+  try {
+    const response = await fetch(`https://api.laozhang.ai/v1/video/generations/${taskId}`, {
+      method: 'GET',
+      headers: {
+        'Authorization': `Bearer ${client.apiKey}`,
+        'Content-Type': 'application/json',
+      },
+    });
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      console.error('Video status API Error:', response.status, errorText);
+      throw new Error(`Video status API Error: ${response.status} - ${errorText}`);
+    }
+
+    const data = await response.json();
+
+    if (data.status === 'completed' || data.status === 'succeeded') {
+      const videoUrl = data.data?.[0]?.url || data.url || data.output?.url;
+      if (videoUrl) {
+        return {
+          url: videoUrl,
+          status: 'completed',
+        };
+      }
+    } else if (data.status === 'failed' || data.status === 'error') {
+      return {
+        url: '',
+        status: 'failed',
+        error: data.error || data.message || 'Video generation failed',
+      };
+    }
+
+    // Still processing
+    return {
+      url: '',
+      status: 'processing',
+    };
+  } catch (error: unknown) {
+    console.error('Video status check error:', error);
+    const errorMessage = error instanceof Error ? error.message : 'Failed to check video status';
+    throw new Error(errorMessage);
+  }
 }
