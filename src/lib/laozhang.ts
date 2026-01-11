@@ -52,13 +52,14 @@ export interface VideoGenerationOptions {
 }
 
 // Model configurations
+// gemini-3-pro-image-preview = Nano Banana Pro, supports 4K
 const MODEL_CONFIG: Record<ImageModel, {
   apiModelId: string;
   useNativeFormat: boolean;
   supports4K: boolean;
 }> = {
   'nano-banana-pro': {
-    apiModelId: 'gemini-3-pro-image-preview',  // Nano Banana Pro - supports 4K and up to 14 reference images
+    apiModelId: 'gemini-3-pro-image-preview',  // Nano Banana Pro - 4K support
     useNativeFormat: true,
     supports4K: true,
   },
@@ -218,24 +219,35 @@ export async function generateImage(
         }
       }
 
+      const requestBody = {
+        contents: [{
+          parts: parts
+        }],
+        generationConfig: {
+          responseModalities: ['TEXT', 'IMAGE'],  // Both TEXT and IMAGE per API docs
+          imageConfig: {
+            aspectRatio: aspectRatio,
+            imageSize: actualSize,  // Must be uppercase: 1K, 2K, 4K
+          },
+        },
+      };
+
+      console.log('🚀 API Request:', {
+        model: config.apiModelId,
+        imageSize: actualSize,
+        aspectRatio: aspectRatio,
+        hasReferenceImage: !!referenceImage,
+        hasStyleReference: !!styleReference,
+        partsCount: parts.length,
+      });
+
       response = await fetch(`https://api.laozhang.ai/v1beta/models/${config.apiModelId}:generateContent`, {
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${client.apiKey}`,
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({
-          contents: [{
-            parts: parts
-          }],
-          generationConfig: {
-            responseModalities: ['TEXT', 'IMAGE'],  // Both TEXT and IMAGE per API docs
-            imageConfig: {
-              aspectRatio: aspectRatio,
-              imageSize: actualSize,  // Must be uppercase: 1K, 2K, 4K
-            },
-          },
-        }),
+        body: JSON.stringify(requestBody),
       });
 
       if (!response.ok) {
@@ -247,7 +259,20 @@ export async function generateImage(
       const data = await response.json();
 
       // Log the full response for debugging
-      console.log('Gemini API Response:', JSON.stringify(data, null, 2).substring(0, 2000));
+      console.log('📦 Gemini API Response structure:', {
+        hasCandidates: !!data.candidates,
+        candidateCount: data.candidates?.length || 0,
+        hasError: !!data.error,
+        hasPromptFeedback: !!data.promptFeedback,
+      });
+      if (data.candidates?.[0]?.content?.parts) {
+        console.log('📦 Response parts:', data.candidates[0].content.parts.map((p: any) => ({
+          type: p.text ? 'text' : p.inlineData ? 'image' : p.inline_data ? 'image_snake' : 'unknown',
+          textLength: p.text?.length,
+          imageDataLength: (p.inlineData?.data || p.inline_data?.data)?.length,
+          mimeType: p.inlineData?.mimeType || p.inline_data?.mime_type,
+        })));
+      }
 
       // Extract image from Google native format response
       const candidates = data.candidates || [];
