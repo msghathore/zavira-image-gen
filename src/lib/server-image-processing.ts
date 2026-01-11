@@ -132,16 +132,18 @@ export async function optimizeBase64ToWebP(
   options: {
     maxWidth?: number;
     quality?: number;
+    keepOriginal?: boolean; // If true, don't convert - keep original format
   } = {}
 ): Promise<{ dataUrl: string; blurhash: string; size: number }> {
-  const { maxWidth = 1200, quality = 80 } = options;
+  const { maxWidth = 1200, quality = 80, keepOriginal = false } = options;
 
-  const match = base64DataUrl.match(/^data:image\/[^;]+;base64,(.+)$/);
+  const match = base64DataUrl.match(/^data:(image\/[^;]+);base64,(.+)$/);
   if (!match) {
     throw new Error('Invalid base64 data URL');
   }
 
-  const buffer = Buffer.from(match[1], 'base64');
+  const mimeType = match[1];
+  const buffer = Buffer.from(match[2], 'base64');
 
   // Get original dimensions
   const metadata = await sharp(buffer).metadata();
@@ -149,17 +151,27 @@ export async function optimizeBase64ToWebP(
   const originalHeight = metadata.height || 800;
   const aspectRatio = originalHeight / originalWidth;
 
-  // Resize and convert to WebP
-  const targetWidth = Math.min(originalWidth, maxWidth);
-  const targetHeight = Math.round(targetWidth * aspectRatio);
+  let outputBuffer: Buffer;
+  let outputMimeType: string;
 
-  const outputBuffer = await sharp(buffer)
-    .resize(targetWidth, targetHeight, {
-      withoutEnlargement: true,
-      fit: 'inside',
-    })
-    .webp({ quality, effort: 5 })
-    .toBuffer();
+  if (keepOriginal) {
+    // Keep original format - no conversion, no resize (maximum quality)
+    outputBuffer = buffer;
+    outputMimeType = mimeType;
+  } else {
+    // Resize and convert to WebP
+    const targetWidth = Math.min(originalWidth, maxWidth);
+    const targetHeight = Math.round(targetWidth * aspectRatio);
+
+    outputBuffer = await sharp(buffer)
+      .resize(targetWidth, targetHeight, {
+        withoutEnlargement: true,
+        fit: 'inside',
+      })
+      .webp({ quality, effort: 5 })
+      .toBuffer();
+    outputMimeType = 'image/webp';
+  }
 
   // Generate blurhash
   const blurhashSize = 32;
@@ -180,7 +192,7 @@ export async function optimizeBase64ToWebP(
   );
 
   return {
-    dataUrl: `data:image/webp;base64,${outputBuffer.toString('base64')}`,
+    dataUrl: `data:${outputMimeType};base64,${outputBuffer.toString('base64')}`,
     blurhash,
     size: outputBuffer.length,
   };
