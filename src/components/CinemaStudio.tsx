@@ -318,10 +318,7 @@ export default function CinemaStudio({
             {conversations.map((conv) => (
               <button
                 key={conv.id}
-                onClick={() => {
-                  console.log('Selecting conversation:', conv.id);
-                  onSelectConversation?.(conv.id);
-                }}
+                onClick={() => onSelectConversation?.(conv.id)}
                 className={`group relative w-full text-left px-4 py-3 transition-colors ${
                   activeConversationId === conv.id
                     ? 'bg-zinc-800 border-l-2 border-lime-500'
