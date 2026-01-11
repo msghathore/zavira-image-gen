@@ -58,9 +58,9 @@ const MODEL_CONFIG: Record<ImageModel, {
   supports4K: boolean;
 }> = {
   'nano-banana-pro': {
-    apiModelId: 'gemini-2.5-flash-image-preview',  // Nano Banana Pro - up to 2K
+    apiModelId: 'gemini-3-pro-image-preview',  // Nano Banana Pro - supports 4K and up to 14 reference images
     useNativeFormat: true,
-    supports4K: false,
+    supports4K: true,
   },
   'gpt-image-1': {
     apiModelId: 'gpt-image-1',
@@ -186,37 +186,37 @@ export async function generateImage(
       // Use Google native format for Nano Banana models (supports 4K)
       const actualSize = config.supports4K ? imageSize : (imageSize === '4K' ? '2K' : imageSize);
 
-      // Build parts array - include reference image if provided for editing
-      const parts: Array<{ text?: string; inlineData?: { mimeType: string; data: string } }> = [];
+      // Build parts array - TEXT PROMPT MUST COME FIRST per Gemini API docs
+      const parts: Array<{ text?: string; inline_data?: { mime_type: string; data: string } }> = [];
 
-      // Add reference image first if provided (for image editing)
+      // Add text prompt FIRST (required by Gemini API)
+      parts.push({ text: prompt });
+
+      // Add reference image for editing (after prompt)
       if (referenceImage) {
         const imageData = parseDataUrl(referenceImage);
         if (imageData) {
           parts.push({
-            inlineData: {
-              mimeType: imageData.mimeType,
+            inline_data: {
+              mime_type: imageData.mimeType,
               data: imageData.data,
             }
           });
         }
       }
 
-      // Add style reference image second if provided (for style inspiration)
+      // Add style reference image for style inspiration (after reference)
       if (styleReference) {
         const styleData = parseDataUrl(styleReference);
         if (styleData) {
           parts.push({
-            inlineData: {
-              mimeType: styleData.mimeType,
+            inline_data: {
+              mime_type: styleData.mimeType,
               data: styleData.data,
             }
           });
         }
       }
-
-      // Add text prompt
-      parts.push({ text: prompt });
 
       response = await fetch(`https://api.laozhang.ai/v1beta/models/${config.apiModelId}:generateContent`, {
         method: 'POST',
@@ -229,7 +229,7 @@ export async function generateImage(
             parts: parts
           }],
           generationConfig: {
-            responseModalities: ['IMAGE'],
+            responseModalities: ['TEXT', 'IMAGE'],  // Both TEXT and IMAGE per API docs
             imageConfig: {
               aspectRatio: aspectRatio,
               imageSize: actualSize,  // Must be uppercase: 1K, 2K, 4K
@@ -246,19 +246,70 @@ export async function generateImage(
 
       const data = await response.json();
 
+      // Log the full response for debugging
+      console.log('Gemini API Response:', JSON.stringify(data, null, 2).substring(0, 2000));
+
       // Extract image from Google native format response
       const candidates = data.candidates || [];
+
+      // Check for error in response
+      if (data.error) {
+        throw new Error(`API returned error: ${data.error.message || JSON.stringify(data.error)}`);
+      }
+
+      // Check for blocked or safety filtered responses
+      if (candidates.length === 0) {
+        const blockReason = data.promptFeedback?.blockReason;
+        if (blockReason) {
+          throw new Error(`Request blocked: ${blockReason}`);
+        }
+        throw new Error('No candidates in response - the model may not support this request type');
+      }
+
       for (const candidate of candidates) {
+        // Check for finish reason that indicates failure
+        if (candidate.finishReason && candidate.finishReason !== 'STOP') {
+          console.log('Candidate finish reason:', candidate.finishReason);
+        }
+
         const parts = candidate.content?.parts || [];
+
+        // Log what parts we received (check both camelCase and snake_case)
+        console.log('Response parts:', parts.map((p: any) => ({
+          hasText: !!p.text,
+          hasInlineData: !!(p.inlineData || p.inline_data),
+          textPreview: p.text?.substring(0, 100),
+          mimeType: p.inlineData?.mimeType || p.inline_data?.mime_type,
+        })));
+
         for (const part of parts) {
-          if (part.inlineData?.data) {
+          // Handle both camelCase (inlineData) and snake_case (inline_data) response formats
+          const inlineData = part.inlineData || part.inline_data;
+          if (inlineData?.data) {
             // Base64 image data
-            const mimeType = part.inlineData.mimeType || 'image/png';
-            imageUrl = `data:${mimeType};base64,${part.inlineData.data}`;
+            const mimeType = inlineData.mimeType || inlineData.mime_type || 'image/png';
+            imageUrl = `data:${mimeType};base64,${inlineData.data}`;
             break;
+          }
+          // Check if there's text response explaining why no image was generated
+          if (part.text && !imageUrl) {
+            console.log('Text response from model:', part.text.substring(0, 500));
           }
         }
         if (imageUrl) break;
+      }
+
+      // If no image found, provide more context
+      if (!imageUrl && candidates.length > 0) {
+        const textResponses = candidates
+          .flatMap((c: any) => c.content?.parts || [])
+          .filter((p: any) => p.text)
+          .map((p: any) => p.text)
+          .join(' ');
+
+        if (textResponses) {
+          throw new Error(`Model returned text instead of image: ${textResponses.substring(0, 200)}`);
+        }
       }
     } else {
       // Use OpenAI-compatible format for GPT models

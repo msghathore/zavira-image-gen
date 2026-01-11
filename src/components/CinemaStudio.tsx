@@ -105,9 +105,10 @@ function LazyMedia({ id, type, url, prompt, className = '', onClick, onUrlLoaded
 interface GalleryItemProps {
   content: GeneratedContent;
   onExpand: (url: string) => void;
+  onSetReference?: (url: string) => void;
 }
 
-function GalleryItem({ content, onExpand }: GalleryItemProps) {
+function GalleryItem({ content, onExpand, onSetReference }: GalleryItemProps) {
   const [loadedUrl, setLoadedUrl] = useState(content.url);
   const [isLoading, setIsLoading] = useState(!content.url);
   const [error, setError] = useState(false);
@@ -154,9 +155,16 @@ function GalleryItem({ content, onExpand }: GalleryItemProps) {
     }
   };
 
+  const handleSetReference = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (loadedUrl && onSetReference && content.type === 'image') {
+      onSetReference(loadedUrl);
+    }
+  };
+
   return (
     <div
-      className="relative aspect-square rounded-lg overflow-hidden cursor-pointer hover:ring-2 hover:ring-lime-500 transition-all"
+      className="relative aspect-square rounded-lg overflow-hidden cursor-pointer hover:ring-2 hover:ring-lime-500 transition-all group"
       onClick={handleClick}
     >
       {isLoading ? (
@@ -174,6 +182,18 @@ function GalleryItem({ content, onExpand }: GalleryItemProps) {
       ) : (
         <img src={loadedUrl} alt={content.prompt} className="w-full h-full object-cover" />
       )}
+      {/* Set as Reference button - only for images */}
+      {content.type === 'image' && onSetReference && loadedUrl && !isLoading && !error && (
+        <button
+          onClick={handleSetReference}
+          className="absolute top-1 right-1 p-1.5 bg-black/70 hover:bg-lime-500 hover:text-black rounded-md opacity-0 group-hover:opacity-100 transition-all"
+          title="Use as reference"
+        >
+          <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1" />
+          </svg>
+        </button>
+      )}
       <div className="absolute bottom-0 inset-x-0 bg-gradient-to-t from-black/80 to-transparent p-1.5">
         <p className="text-[10px] text-white truncate">{content.prompt}</p>
       </div>
@@ -186,9 +206,10 @@ function GalleryItem({ content, onExpand }: GalleryItemProps) {
 interface ConversationViewProps {
   content: GeneratedContent[];
   onExpand: (url: string) => void;
+  onSetReference?: (url: string) => void;
 }
 
-function ConversationView({ content, onExpand }: ConversationViewProps) {
+function ConversationView({ content, onExpand, onSetReference }: ConversationViewProps) {
   const containerRef = useRef<HTMLDivElement>(null);
 
   // Auto-scroll to bottom when new content is added
@@ -231,6 +252,7 @@ function ConversationView({ content, onExpand }: ConversationViewProps) {
             key={item.id}
             content={item}
             onExpand={onExpand}
+            onSetReference={onSetReference}
             nextUrls={nextUrls}
           />
         );
@@ -240,7 +262,7 @@ function ConversationView({ content, onExpand }: ConversationViewProps) {
 }
 
 // Single conversation item (prompt + image) with BlurHash placeholder and caching
-function ConversationItem({ content, onExpand, nextUrls = [] }: { content: GeneratedContent; onExpand: (url: string) => void; nextUrls?: string[] }) {
+function ConversationItem({ content, onExpand, onSetReference, nextUrls = [] }: { content: GeneratedContent; onExpand: (url: string) => void; onSetReference?: (url: string) => void; nextUrls?: string[] }) {
   const [loadedUrl, setLoadedUrl] = useState(content.url);
   const [cachedUrl, setCachedUrl] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(!content.url);
@@ -353,7 +375,7 @@ function ConversationItem({ content, onExpand, nextUrls = [] }: { content: Gener
               onClick={() => onExpand(displayUrl)}
             />
           ) : (
-            <div className="relative max-w-md max-h-96 rounded-lg overflow-hidden">
+            <div className="relative max-w-md max-h-96 rounded-lg overflow-hidden group">
               {/* BlurHash placeholder behind image */}
               {blurhashPlaceholder && !imageLoaded && (
                 <img
@@ -372,6 +394,22 @@ function ConversationItem({ content, onExpand, nextUrls = [] }: { content: Gener
                 onClick={() => onExpand(displayUrl)}
                 onLoad={() => setImageLoaded(true)}
               />
+              {/* Set as Reference button */}
+              {onSetReference && imageLoaded && (
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    onSetReference(displayUrl);
+                  }}
+                  className="absolute top-2 right-2 px-2 py-1 bg-black/70 hover:bg-lime-500 hover:text-black rounded-md text-xs flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-all"
+                  title="Use as reference"
+                >
+                  <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1" />
+                  </svg>
+                  Use as Ref
+                </button>
+              )}
             </div>
           )}
           <p className="text-xs text-zinc-500 mt-1 px-1">
@@ -1017,6 +1055,7 @@ export default function CinemaStudio({
             <ConversationView
               content={generatedContent}
               onExpand={(url) => setExpandedImage(url)}
+              onSetReference={(url) => setUploadedImage(url)}
             />
           ) : (
             <div className="flex-1 flex items-center justify-center p-8">
@@ -1138,6 +1177,7 @@ export default function CinemaStudio({
                   key={content.id}
                   content={content}
                   onExpand={(url) => setExpandedImage(url)}
+                  onSetReference={(url) => setUploadedImage(url)}
                 />
               ))}
               {generatedContent.length === 0 && (
