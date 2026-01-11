@@ -182,17 +182,34 @@ function GalleryItem({ content, onExpand, onSetReference }: GalleryItemProps) {
       ) : (
         <img src={loadedUrl} alt={content.prompt} className="w-full h-full object-cover" />
       )}
-      {/* Set as Reference button - only for images */}
-      {content.type === 'image' && onSetReference && loadedUrl && !isLoading && !error && (
-        <button
-          onClick={handleSetReference}
-          className="absolute top-1 right-1 p-1.5 bg-black/70 hover:bg-lime-500 hover:text-black rounded-md opacity-0 group-hover:opacity-100 transition-all"
-          title="Use as reference"
-        >
-          <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1" />
-          </svg>
-        </button>
+      {/* Action buttons - only for images */}
+      {content.type === 'image' && loadedUrl && !isLoading && !error && (
+        <div className="absolute top-1 right-1 flex gap-1 opacity-0 group-hover:opacity-100 transition-all">
+          {/* Download button */}
+          <a
+            href={loadedUrl}
+            download={`image-${content.id || Date.now()}.png`}
+            onClick={(e) => e.stopPropagation()}
+            className="p-1.5 bg-black/70 hover:bg-lime-500 hover:text-black rounded-md"
+            title="Download image"
+          >
+            <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+            </svg>
+          </a>
+          {/* Set as Reference button */}
+          {onSetReference && (
+            <button
+              onClick={handleSetReference}
+              className="p-1.5 bg-black/70 hover:bg-lime-500 hover:text-black rounded-md"
+              title="Use as reference"
+            >
+              <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1" />
+              </svg>
+            </button>
+          )}
+        </div>
       )}
       <div className="absolute bottom-0 inset-x-0 bg-gradient-to-t from-black/80 to-transparent p-1.5">
         <p className="text-[10px] text-white truncate">{content.prompt}</p>
@@ -394,21 +411,39 @@ function ConversationItem({ content, onExpand, onSetReference, nextUrls = [] }: 
                 onClick={() => onExpand(displayUrl)}
                 onLoad={() => setImageLoaded(true)}
               />
-              {/* Set as Reference button */}
-              {onSetReference && imageLoaded && (
-                <button
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    onSetReference(displayUrl);
-                  }}
-                  className="absolute top-2 right-2 px-2 py-1 bg-black/70 hover:bg-lime-500 hover:text-black rounded-md text-xs flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-all"
-                  title="Use as reference"
-                >
-                  <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1" />
-                  </svg>
-                  Use as Ref
-                </button>
+              {/* Action buttons */}
+              {imageLoaded && (
+                <div className="absolute top-2 right-2 flex gap-1 opacity-0 group-hover:opacity-100 transition-all">
+                  {/* Download button */}
+                  <a
+                    href={displayUrl}
+                    download={`image-${content.id || Date.now()}.png`}
+                    onClick={(e) => e.stopPropagation()}
+                    className="px-2 py-1 bg-black/70 hover:bg-lime-500 hover:text-black rounded-md text-xs flex items-center gap-1"
+                    title="Download image"
+                  >
+                    <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+                    </svg>
+                    Download
+                  </a>
+                  {/* Set as Reference button */}
+                  {onSetReference && (
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        onSetReference(displayUrl);
+                      }}
+                      className="px-2 py-1 bg-black/70 hover:bg-lime-500 hover:text-black rounded-md text-xs flex items-center gap-1"
+                      title="Use as reference"
+                    >
+                      <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1" />
+                      </svg>
+                      Use as Ref
+                    </button>
+                  )}
+                </div>
               )}
             </div>
           )}
