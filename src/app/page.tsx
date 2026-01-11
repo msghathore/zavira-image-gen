@@ -34,15 +34,22 @@ export default function Home() {
 
   // Load a specific conversation
   const loadConversation = async (id: string) => {
+    console.log('loadConversation called with id:', id);
     try {
       const res = await fetch(`/api/conversations/${id}`);
       const data = await res.json();
+      console.log('API response:', JSON.stringify({
+        hasConversation: !!data.conversation,
+        messagesCount: data.conversation?.messages?.length,
+      }));
       if (data.conversation) {
         setConversationId(id);
         // Extract images and videos from messages
         const content: GeneratedContent[] = [];
         data.conversation.messages?.forEach((msg: any) => {
+          console.log('Processing message:', { id: msg.id, imagesCount: msg.images?.length, videosCount: msg.videos?.length });
           msg.images?.forEach((img: any) => {
+            console.log('Adding image:', { id: img.id, hasUrl: !!img.image_url });
             content.push({
               id: img.id,
               type: 'image',
@@ -52,6 +59,7 @@ export default function Home() {
             });
           });
           msg.videos?.forEach((vid: any) => {
+            console.log('Adding video:', { id: vid.id, hasUrl: !!vid.video_url });
             content.push({
               id: vid.id,
               type: 'video',
@@ -61,6 +69,7 @@ export default function Home() {
             });
           });
         });
+        console.log('Final content count:', content.length);
         setGeneratedContent(content.reverse());
       }
     } catch (error) {
