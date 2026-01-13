@@ -521,50 +521,49 @@ export async function checkVideoStatus(
   }
 }
 
+
 // Summarize a prompt into a short 3-4 word title for conversation sidebar
-export async function summarizePromptToTitle(
-  client: { apiKey: string },
+// FREE method - no AI API calls, just smart keyword extraction
+export function summarizePromptToTitle(
+  _client: { apiKey: string },
   prompt: string
-): Promise<string> {
-  try {
-    const response = await fetch('https://api.laozhang.ai/v1/chat/completions', {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${client.apiKey}`,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        model: 'gpt-4o-mini',
-        messages: [
-          {
-            role: 'system',
-            content: 'You are a title generator. Given an image generation prompt, create a very short title (3-4 words max) that captures the essence. No quotes, no punctuation at end. Examples: "Sunset Beach Scene", "Cyberpunk City Night", "Golden Retriever Portrait", "Abstract Neon Waves"'
-          },
-          {
-            role: 'user',
-            content: prompt
-          }
-        ],
-        max_tokens: 20,
-        temperature: 0.7,
-      }),
-    });
+): string {
+  // Common stop words to filter out
+  const stopWords = new Set([
+    'a', 'an', 'the', 'of', 'in', 'on', 'at', 'to', 'for', 'with', 'by',
+    'and', 'or', 'but', 'is', 'are', 'was', 'were', 'be', 'been', 'being',
+    'have', 'has', 'had', 'do', 'does', 'did', 'will', 'would', 'could',
+    'should', 'may', 'might', 'must', 'can', 'this', 'that', 'these', 'those',
+    'i', 'you', 'he', 'she', 'it', 'we', 'they', 'what', 'which', 'who',
+    'when', 'where', 'why', 'how', 'all', 'each', 'every', 'both', 'few',
+    'more', 'most', 'other', 'some', 'such', 'no', 'nor', 'not', 'only',
+    'own', 'same', 'so', 'than', 'too', 'very', 'just', 'also', 'now',
+    'here', 'there', 'then', 'once', 'any', 'as', 'if', 'into', 'through',
+    'during', 'before', 'after', 'above', 'below', 'between', 'under', 'again',
+    'further', 'then', 'once', 'image', 'picture', 'photo', 'generate', 'create',
+    'make', 'show', 'draw', 'render', 'depicting', 'showing', 'featuring',
+    'like', 'style', 'looking', 'scene', 'view', 'shot', 'please', 'want',
+  ]);
 
-    if (!response.ok) {
-      console.error('Title generation failed:', response.status);
-      return prompt.substring(0, 30) + '...';
-    }
+  // Clean and split prompt into words
+  const words = prompt
+    .toLowerCase()
+    .replace(/[^\w\s-]/g, ' ') // Remove punctuation except hyphens
+    .split(/\s+/)
+    .filter(word => word.length > 2 && !stopWords.has(word));
 
-    const data = await response.json();
-    const title = data.choices?.[0]?.message?.content?.trim();
+  // Take first 3-4 meaningful words
+  const titleWords = words.slice(0, 4);
 
-    if (title && title.length > 0 && title.length <= 50) {
-      return title;
-    }
-
-    return prompt.substring(0, 30) + '...';
-  } catch (error) {
-    console.error('Title summarization error:', error);
-    return prompt.substring(0, 30) + '...';
+  if (titleWords.length === 0) {
+    // Fallback: just take first few characters
+    return prompt.substring(0, 25).trim() + '...';
   }
+
+  // Capitalize each word
+  const title = titleWords
+    .map(word => word.charAt(0).toUpperCase() + word.slice(1))
+    .join(' ');
+
+  return title;
 }

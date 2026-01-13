@@ -156,7 +156,7 @@ export async function POST(request: NextRequest) {
         if (isNewConversation) {
           try {
             console.log('📝 Generating AI title for new conversation...');
-            const title = await summarizePromptToTitle(client, prompt);
+            const title = summarizePromptToTitle(client, prompt);
             await updateConversationTitle(convId, title);
             console.log(`✅ Conversation title updated: "${title}"`);
           } catch (titleError) {
