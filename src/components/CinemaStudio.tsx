@@ -1526,33 +1526,33 @@ export default function CinemaStudio({
         )}
       </div>
 
-      {/* Bottom Control Bar - Higgsfield Glass Look */}
-      <div className="border-t border-zinc-800/50 bg-zinc-900/80 backdrop-blur-md px-4 py-4">
-        <div className="flex items-center gap-3">
-          {/* Mode Toggle - Glass Look */}
-          <div className="inline-flex bg-zinc-800/60 backdrop-blur-sm rounded-xl p-1 border border-zinc-700/30">
+      {/* Bottom Control Bar - Higgsfield Style (Taller) */}
+      <div className="border-t border-zinc-800/50 bg-zinc-900/80 backdrop-blur-md px-6 py-5">
+        <div className="flex items-start gap-4">
+          {/* Mode Toggle - Higgsfield Style (Taller) */}
+          <div className="inline-flex flex-col bg-zinc-800/60 backdrop-blur-sm rounded-2xl p-1.5 border border-zinc-700/30">
             <button
               onClick={() => setMode('image')}
-              className={`px-4 py-2 rounded-lg text-xs font-medium transition-all flex items-center gap-1.5 ${
+              className={`px-5 py-3 rounded-xl text-sm font-medium transition-all flex items-center gap-2 ${
                 mode === 'image'
                   ? 'bg-lime-500/90 text-black shadow-lg'
                   : 'text-zinc-400 hover:text-white hover:bg-zinc-700/50'
               }`}
             >
-              <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
               </svg>
               Image
             </button>
             <button
               onClick={() => setMode('video')}
-              className={`px-4 py-2 rounded-lg text-xs font-medium transition-all flex items-center gap-1.5 ${
+              className={`px-5 py-3 rounded-xl text-sm font-medium transition-all flex items-center gap-2 ${
                 mode === 'video'
                   ? 'bg-lime-500/90 text-black shadow-lg'
                   : 'text-zinc-400 hover:text-white hover:bg-zinc-700/50'
               }`}
             >
-              <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z" />
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
               </svg>
@@ -1567,9 +1567,9 @@ export default function CinemaStudio({
               onChange={(e) => setPrompt(e.target.value)}
               onKeyDown={(e) => e.key === 'Enter' && !e.shiftKey && (e.preventDefault(), handleGenerate())}
               placeholder={mode === 'video' ? "Describe your video scene..." : "Describe what you want to create..."}
-              rows={2}
-              className="w-full bg-zinc-800/80 backdrop-blur-sm border border-zinc-700/50 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-lime-500/50 focus:border-lime-500/50 placeholder:text-zinc-500 resize-none"
-              style={{ minHeight: '56px' }}
+              rows={3}
+              className="w-full bg-zinc-800/80 backdrop-blur-sm border border-zinc-700/50 rounded-2xl px-5 py-4 text-sm focus:outline-none focus:ring-2 focus:ring-lime-500/50 focus:border-lime-500/50 placeholder:text-zinc-500 resize-none leading-relaxed"
+              style={{ minHeight: '80px' }}
             />
           </div>
 
@@ -1928,11 +1928,11 @@ export default function CinemaStudio({
             </>
           )}
 
-          {/* Generate Button - Always Clickable for Parallel Generation */}
+          {/* Generate Button - Higgsfield Style (Taller) */}
           <button
             onClick={handleGenerate}
             disabled={!prompt.trim()}
-            className={`px-8 py-3 rounded-xl font-semibold transition-all flex items-center gap-2 text-sm tracking-wide ${
+            className={`px-10 py-5 rounded-2xl font-bold transition-all flex items-center gap-2.5 text-base tracking-wide self-stretch ${
               !prompt.trim()
                 ? 'bg-zinc-700/80 text-zinc-500 cursor-not-allowed'
                 : 'bg-lime-500 hover:bg-lime-400 text-black shadow-lg shadow-lime-500/25 hover:shadow-lime-400/30'
@@ -1940,7 +1940,7 @@ export default function CinemaStudio({
           >
             {activeGenerations > 0 ? (
               <>
-                <svg className="animate-spin h-4 w-4" fill="none" viewBox="0 0 24 24">
+                <svg className="animate-spin h-5 w-5" fill="none" viewBox="0 0 24 24">
                   <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
                   <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
                 </svg>
