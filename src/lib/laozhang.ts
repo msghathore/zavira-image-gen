@@ -168,10 +168,10 @@ function getOpenAISizeFromAspectRatio(aspectRatio: string): string {
   switch (aspectRatio) {
     case '9:16':
     case '3:4':
-      return '1024x1792';
+      return '1024x1536';
     case '16:9':
     case '4:3':
-      return '1792x1024';
+      return '1536x1024';
     case '1:1':
     default:
       return '1024x1024';
