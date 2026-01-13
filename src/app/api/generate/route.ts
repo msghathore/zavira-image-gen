@@ -1,6 +1,6 @@
 import { NextRequest } from 'next/server';
-import { createLaoZhangClient, generateImage } from '@/lib/laozhang';
-import { addMessage, saveGeneratedImage, getConversationImages, createConversation, uploadImageToStorage } from '@/lib/supabase';
+import { createLaoZhangClient, generateImage, summarizePromptToTitle } from '@/lib/laozhang';
+import { addMessage, saveGeneratedImage, getConversationImages, createConversation, uploadImageToStorage, updateConversationTitle } from '@/lib/supabase';
 import { v4 as uuidv4 } from 'uuid';
 import { generateBlurhashFromBase64 } from '@/lib/server-image-processing';
 
@@ -46,8 +46,10 @@ export async function POST(request: NextRequest) {
 
         // Create or use existing conversation
         let convId = conversationId;
+        let isNewConversation = false;
         if (!convId) {
-          const newConv = await createConversation(prompt.substring(0, 50) + '...');
+          const newConv = await createConversation('New Project');
+          isNewConversation = true;
           convId = newConv.id;
         }
 
@@ -149,6 +151,19 @@ export async function POST(request: NextRequest) {
             blurhash,
           },
         });
+
+        // Generate AI title for new conversations (non-blocking)
+        if (isNewConversation) {
+          try {
+            console.log('📝 Generating AI title for new conversation...');
+            const title = await summarizePromptToTitle(client, prompt);
+            await updateConversationTitle(convId, title);
+            console.log(`✅ Conversation title updated: "${title}"`);
+          } catch (titleError) {
+            console.error('Failed to generate title:', titleError);
+            // Non-critical - conversation still works with default title
+          }
+        }
 
         controller.close();
       } catch (error: any) {

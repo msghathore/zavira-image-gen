@@ -520,3 +520,51 @@ export async function checkVideoStatus(
     throw new Error(errorMessage);
   }
 }
+
+// Summarize a prompt into a short 3-4 word title for conversation sidebar
+export async function summarizePromptToTitle(
+  client: { apiKey: string },
+  prompt: string
+): Promise<string> {
+  try {
+    const response = await fetch('https://api.laozhang.ai/v1/chat/completions', {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${client.apiKey}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        model: 'gpt-4o-mini',
+        messages: [
+          {
+            role: 'system',
+            content: 'You are a title generator. Given an image generation prompt, create a very short title (3-4 words max) that captures the essence. No quotes, no punctuation at end. Examples: "Sunset Beach Scene", "Cyberpunk City Night", "Golden Retriever Portrait", "Abstract Neon Waves"'
+          },
+          {
+            role: 'user',
+            content: prompt
+          }
+        ],
+        max_tokens: 20,
+        temperature: 0.7,
+      }),
+    });
+
+    if (!response.ok) {
+      console.error('Title generation failed:', response.status);
+      return prompt.substring(0, 30) + '...';
+    }
+
+    const data = await response.json();
+    const title = data.choices?.[0]?.message?.content?.trim();
+
+    if (title && title.length > 0 && title.length <= 50) {
+      return title;
+    }
+
+    return prompt.substring(0, 30) + '...';
+  } catch (error) {
+    console.error('Title summarization error:', error);
+    return prompt.substring(0, 30) + '...';
+  }
+}
