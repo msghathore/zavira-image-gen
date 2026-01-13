@@ -282,11 +282,11 @@ export async function generateImage(
         if (imageUrl) break;
       }
     } else if (config.useImagesApi) {
-      // Use OpenAI Images API for GPT-image-1
+      // Use OpenAI Images API for GPT-image-1.5
       const size = getOpenAISizeFromAspectRatio(aspectRatio);
-      const quality = 'high'; // Always use HD quality
+      const quality = 'high';
 
-      const requestBody = {
+      const requestBody: any = {
         model: config.apiModelId,
         prompt: prompt,
         n: 1,
@@ -294,7 +294,15 @@ export async function generateImage(
         quality: quality,
       };
 
-      console.log('🚀 GPT Image API Request:', { model: config.apiModelId, size, quality, aspectRatio });
+      // Add reference image if provided (for image editing)
+      if (referenceImage) {
+        const imageData = parseDataUrl(referenceImage);
+        if (imageData) {
+          requestBody.image = imageData.data;
+        }
+      }
+
+      console.log('🚀 GPT Image API Request:', { model: config.apiModelId, size, quality, aspectRatio, hasRefImage: !!referenceImage });
 
       response = await fetch('https://api.laozhang.ai/v1/images/generations', {
         method: 'POST',
