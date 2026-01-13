@@ -722,7 +722,7 @@ function MainPreview({ content, onExpand }: MainPreviewProps) {
 // ==================== TYPES ====================
 
 export type VideoModel = 'sora-2-pro' | 'kling-2.6' | 'veo-3.1' | 'wan-2.6' | 'seedance-1.5-pro';
-export type ImageModel = 'nano-banana-2' | 'nano-banana-pro' | 'gpt-image-1' | 'flux-kontext-pro' | 'flux-1.1-ultra' | 'ideogram-v3' | 'recraft-v3';
+export type ImageModel = 'nano-banana-2' | 'nano-banana-pro' | 'gpt-image-1.5' | 'flux-kontext-pro' | 'flux-1.1-ultra' | 'ideogram-v3' | 'recraft-v3';
 export type VideoDuration = '5s' | '10s' | '15s' | '20s';
 export type AspectRatio = '16:9' | '9:16' | '1:1' | '4:3' | '3:4' | '21:9';
 export type ContentMode = 'image' | 'video';
@@ -797,7 +797,7 @@ export interface GeneratedContent {
 }
 
 export interface CinemaStudioProps {
-  onImageGenerate?: (prompt: string, model: ImageModel, aspectRatio: AspectRatio, imageSize: Resolution, uploadedImage?: string, styleReference?: string) => Promise<void>;
+  onImageGenerate?: (prompt: string, model: ImageModel, aspectRatio: AspectRatio, imageSize: Resolution, imageCount: number, uploadedImage?: string, styleReference?: string) => Promise<void>;
   onVideoGenerate?: (state: VideoGenerateParams) => Promise<void>;
   isLoading?: boolean;
   generatedContent?: GeneratedContent[];
@@ -836,7 +836,7 @@ const VIDEO_MODELS: VideoModelInfo[] = [
 
 const IMAGE_MODELS: ImageModelInfo[] = [
   { id: 'nano-banana-pro', name: 'Banana Pro', description: 'High Quality' },
-  { id: 'gpt-image-1', name: 'GPT 1.5', description: 'OpenAI DALL-E' },
+  { id: 'gpt-image-1.5', name: 'GPT 1.5', description: 'OpenAI DALL-E' },
 ];
 
 const CAMERA_MOVEMENTS: { id: CameraMovement; label: string; video: string }[] = [
@@ -1118,9 +1118,9 @@ export default function CinemaStudio({
         resolution,
       });
     } else if (mode === 'image' && onImageGenerate) {
-      await onImageGenerate(prompt, imageModel, aspectRatio, resolution, uploadedImage || undefined, styleReference || undefined);
+      await onImageGenerate(prompt, imageModel, aspectRatio, resolution, imageCount, uploadedImage || undefined, styleReference || undefined);
     }
-  }, [mode, prompt, videoModel, imageModel, duration, aspectRatio, cameraMovement, audioEnabled, lensEnabled, lensIntensity, startFrame, endFrame, cinemaSettings, resolution, uploadedImage, styleReference, onVideoGenerate, onImageGenerate]);
+  }, [mode, prompt, videoModel, imageModel, duration, aspectRatio, cameraMovement, audioEnabled, lensEnabled, lensIntensity, startFrame, endFrame, cinemaSettings, resolution, uploadedImage, styleReference, imageCount, onVideoGenerate, onImageGenerate]);
 
   const selectedVideoModel = VIDEO_MODELS.find(m => m.id === videoModel);
   const selectedImageModel = IMAGE_MODELS.find(m => m.id === imageModel);

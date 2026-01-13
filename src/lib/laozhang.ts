@@ -1,7 +1,7 @@
 // Lao Zhang API client for image and video generation
 // Supports Nano Banana 2 with 4K resolution and various video models
 
-export type ImageModel = 'nano-banana-pro' | 'gpt-image-1';
+export type ImageModel = 'nano-banana-pro' | 'gpt-image-1.5';
 
 // Video model types
 export type VideoModel = 'sora-2-pro' | 'kling-2.6' | 'veo-3.1' | 'wan-2.6' | 'seedance-1.5-pro';
@@ -36,8 +36,8 @@ export interface ImageGenerationOptions {
   model?: ImageModel;
   imageSize?: '1K' | '2K' | '4K';
   aspectRatio?: '1:1' | '16:9' | '9:16' | '4:3' | '3:4';
-  referenceImage?: string; // Base64 image data for editing (data:image/... format)
-  styleReference?: string; // Base64 image data for style inspiration (data:image/... format)
+  referenceImage?: string;
+  styleReference?: string;
 }
 
 export interface VideoGenerationOptions {
@@ -45,34 +45,36 @@ export interface VideoGenerationOptions {
   model?: VideoModel;
   duration?: VideoDuration;
   aspectRatio?: VideoAspectRatio;
-  startFrame?: string; // Base64 image data for first frame
-  endFrame?: string; // Base64 image data for last frame
+  startFrame?: string;
+  endFrame?: string;
   cameraMovement?: CameraMovement;
   withAudio?: boolean;
 }
 
 // Model configurations
-// gemini-3-pro-image-preview = Nano Banana Pro, supports 4K
 const MODEL_CONFIG: Record<ImageModel, {
   apiModelId: string;
   useNativeFormat: boolean;
+  useImagesApi: boolean;
   supports4K: boolean;
 }> = {
   'nano-banana-pro': {
-    apiModelId: 'gemini-3-pro-image-preview',  // Nano Banana Pro - 4K support
+    apiModelId: 'gemini-3-pro-image-preview-4k',
     useNativeFormat: true,
+    useImagesApi: false,
     supports4K: true,
   },
-  'gpt-image-1': {
-    apiModelId: 'gpt-image-1',
+  'gpt-image-1.5': {
+    apiModelId: 'gpt-image-1.5',
     useNativeFormat: false,
-    supports4K: false,
+    useImagesApi: true,
+    supports4K: true,
   },
 };
 
 export const AVAILABLE_MODELS: { id: ImageModel; name: string; description: string }[] = [
-  { id: 'nano-banana-pro', name: 'Banana Pro', description: 'High Quality' },
-  { id: 'gpt-image-1', name: 'GPT 1.5', description: 'OpenAI DALL-E' },
+  { id: 'nano-banana-pro', name: 'Banana Pro', description: 'High Quality 4K' },
+  { id: 'gpt-image-1.5', name: 'GPT Image 1.5', description: 'OpenAI 4K' },
 ];
 
 // Video model configurations
@@ -149,19 +151,31 @@ export interface LaoZhangClient {
   apiKey: string;
 }
 
-// Create client with API key
 export function createLaoZhangClient(apiKey: string): LaoZhangClient {
   return { apiKey };
 }
 
-// Generate image using Lao Zhang API
-// Helper to extract base64 data and mime type from data URL
 function parseDataUrl(dataUrl: string): { mimeType: string; data: string } | null {
   const match = dataUrl.match(/^data:([^;]+);base64,(.+)$/);
   if (match) {
     return { mimeType: match[1], data: match[2] };
   }
   return null;
+}
+
+// Helper to convert aspect ratio to OpenAI Images API size
+function getOpenAISizeFromAspectRatio(aspectRatio: string): string {
+  switch (aspectRatio) {
+    case '9:16':
+    case '3:4':
+      return '1024x1792';
+    case '16:9':
+    case '4:3':
+      return '1792x1024';
+    case '1:1':
+    default:
+      return '1024x1024';
+  }
 }
 
 export async function generateImage(
@@ -184,16 +198,10 @@ export async function generateImage(
     let imageUrl: string | null = null;
 
     if (config.useNativeFormat) {
-      // Use Google native format for Nano Banana models (supports 4K)
       const actualSize = config.supports4K ? imageSize : (imageSize === '4K' ? '2K' : imageSize);
-
-      // Build parts array - TEXT PROMPT MUST COME FIRST per Gemini API docs
       const parts: Array<{ text?: string; inline_data?: { mime_type: string; data: string } }> = [];
-
-      // Add text prompt FIRST (required by Gemini API)
       parts.push({ text: prompt });
 
-      // Add reference image for editing (after prompt)
       if (referenceImage) {
         const imageData = parseDataUrl(referenceImage);
         if (imageData) {
@@ -206,7 +214,6 @@ export async function generateImage(
         }
       }
 
-      // Add style reference image for style inspiration (after reference)
       if (styleReference) {
         const styleData = parseDataUrl(styleReference);
         if (styleData) {
@@ -220,26 +227,17 @@ export async function generateImage(
       }
 
       const requestBody = {
-        contents: [{
-          parts: parts
-        }],
+        contents: [{ parts: parts }],
         generationConfig: {
-          responseModalities: ['TEXT', 'IMAGE'],  // Both TEXT and IMAGE per API docs
+          responseModalities: ['TEXT', 'IMAGE'],
           imageConfig: {
             aspectRatio: aspectRatio,
-            imageSize: actualSize,  // Must be uppercase: 1K, 2K, 4K
+            imageSize: actualSize,
           },
         },
       };
 
-      console.log('🚀 API Request:', {
-        model: config.apiModelId,
-        imageSize: actualSize,
-        aspectRatio: aspectRatio,
-        hasReferenceImage: !!referenceImage,
-        hasStyleReference: !!styleReference,
-        partsCount: parts.length,
-      });
+      console.log('🚀 Gemini API Request:', { model: config.apiModelId, imageSize: actualSize, aspectRatio });
 
       response = await fetch(`https://api.laozhang.ai/v1beta/models/${config.apiModelId}:generateContent`, {
         method: 'POST',
@@ -257,87 +255,77 @@ export async function generateImage(
       }
 
       const data = await response.json();
-
-      // Log the full response for debugging
-      console.log('📦 Gemini API Response structure:', {
-        hasCandidates: !!data.candidates,
-        candidateCount: data.candidates?.length || 0,
-        hasError: !!data.error,
-        hasPromptFeedback: !!data.promptFeedback,
-      });
-      if (data.candidates?.[0]?.content?.parts) {
-        console.log('📦 Response parts:', data.candidates[0].content.parts.map((p: any) => ({
-          type: p.text ? 'text' : p.inlineData ? 'image' : p.inline_data ? 'image_snake' : 'unknown',
-          textLength: p.text?.length,
-          imageDataLength: (p.inlineData?.data || p.inline_data?.data)?.length,
-          mimeType: p.inlineData?.mimeType || p.inline_data?.mime_type,
-        })));
-      }
-
-      // Extract image from Google native format response
       const candidates = data.candidates || [];
 
-      // Check for error in response
       if (data.error) {
         throw new Error(`API returned error: ${data.error.message || JSON.stringify(data.error)}`);
       }
 
-      // Check for blocked or safety filtered responses
       if (candidates.length === 0) {
         const blockReason = data.promptFeedback?.blockReason;
         if (blockReason) {
           throw new Error(`Request blocked: ${blockReason}`);
         }
-        throw new Error('No candidates in response - the model may not support this request type');
+        throw new Error('No candidates in response');
       }
 
       for (const candidate of candidates) {
-        // Check for finish reason that indicates failure
-        if (candidate.finishReason && candidate.finishReason !== 'STOP') {
-          console.log('Candidate finish reason:', candidate.finishReason);
-        }
-
         const parts = candidate.content?.parts || [];
-
-        // Log what parts we received (check both camelCase and snake_case)
-        console.log('Response parts:', parts.map((p: any) => ({
-          hasText: !!p.text,
-          hasInlineData: !!(p.inlineData || p.inline_data),
-          textPreview: p.text?.substring(0, 100),
-          mimeType: p.inlineData?.mimeType || p.inline_data?.mime_type,
-        })));
-
         for (const part of parts) {
-          // Handle both camelCase (inlineData) and snake_case (inline_data) response formats
           const inlineData = part.inlineData || part.inline_data;
           if (inlineData?.data) {
-            // Base64 image data
             const mimeType = inlineData.mimeType || inlineData.mime_type || 'image/png';
             imageUrl = `data:${mimeType};base64,${inlineData.data}`;
             break;
           }
-          // Check if there's text response explaining why no image was generated
-          if (part.text && !imageUrl) {
-            console.log('Text response from model:', part.text.substring(0, 500));
-          }
         }
         if (imageUrl) break;
       }
+    } else if (config.useImagesApi) {
+      // Use OpenAI Images API for GPT-image-1
+      const size = getOpenAISizeFromAspectRatio(aspectRatio);
+      const quality = 'hd'; // Always use HD quality
 
-      // If no image found, provide more context
-      if (!imageUrl && candidates.length > 0) {
-        const textResponses = candidates
-          .flatMap((c: any) => c.content?.parts || [])
-          .filter((p: any) => p.text)
-          .map((p: any) => p.text)
-          .join(' ');
+      const requestBody = {
+        model: config.apiModelId,
+        prompt: prompt,
+        n: 1,
+        size: size,
+        quality: quality,
+        response_format: 'b64_json',
+      };
 
-        if (textResponses) {
-          throw new Error(`Model returned text instead of image: ${textResponses.substring(0, 200)}`);
-        }
+      console.log('🚀 GPT Image API Request:', { model: config.apiModelId, size, quality, aspectRatio });
+
+      response = await fetch('https://api.laozhang.ai/v1/images/generations', {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${client.apiKey}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(requestBody),
+      });
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        console.error('GPT Image API Error:', response.status, errorText);
+        throw new Error(`GPT Image API Error: ${response.status} - ${errorText}`);
+      }
+
+      const data = await response.json();
+
+      if (data.data?.[0]?.b64_json) {
+        imageUrl = `data:image/png;base64,${data.data[0].b64_json}`;
+      } else if (data.data?.[0]?.url) {
+        imageUrl = data.data[0].url;
+      }
+
+      const revisedPrompt = data.data?.[0]?.revised_prompt;
+      if (imageUrl) {
+        return { url: imageUrl, revisedPrompt: revisedPrompt || prompt };
       }
     } else {
-      // Use OpenAI-compatible format for GPT models
+      // Fallback: chat completions
       response = await fetch('https://api.laozhang.ai/v1/chat/completions', {
         method: 'POST',
         headers: {
@@ -347,32 +335,23 @@ export async function generateImage(
         body: JSON.stringify({
           model: config.apiModelId,
           stream: false,
-          messages: [
-            {
-              role: 'user',
-              content: prompt,
-            },
-          ],
+          messages: [{ role: 'user', content: prompt }],
         }),
       });
 
       if (!response.ok) {
         const errorText = await response.text();
-        console.error('API Error:', response.status, errorText);
         throw new Error(`API Error: ${response.status} - ${errorText}`);
       }
 
       const data = await response.json();
       const content = data.choices?.[0]?.message?.content || '';
-
-      // Extract image URL from OpenAI-style response
       const patterns = [
         /!\[.*?\]\((data:image\/[^;]+;base64,[^\)]+)\)/i,
         /!\[.*?\]\((https?:\/\/[^\s\)]+)\)/i,
         /(data:image\/[^;]+;base64,[^\s<>"]+)/i,
         /https?:\/\/[^\s<>"]+\.(png|jpg|jpeg|webp|gif)[^\s<>"]*/i,
       ];
-
       for (const pattern of patterns) {
         const match = content.match(pattern);
         if (match) {
@@ -386,17 +365,13 @@ export async function generateImage(
       throw new Error('No image found in response');
     }
 
-    return {
-      url: imageUrl,
-      revisedPrompt: prompt,
-    };
+    return { url: imageUrl, revisedPrompt: prompt };
   } catch (error: any) {
     console.error('Image generation error:', error);
     throw new Error(error.message || 'Failed to generate image');
   }
 }
 
-// Build context-aware prompt for image editing
 export function buildEditPrompt(
   userRequest: string,
   previousImages: Array<{ prompt: string; url: string }>,
@@ -412,9 +387,7 @@ export function buildEditPrompt(
   }
 
   const editKeywords = ['edit', 'modify', 'change', 'update', 'make it', 'add', 'remove', 'adjust'];
-  const isEditRequest = editKeywords.some(keyword =>
-    userRequest.toLowerCase().includes(keyword)
-  );
+  const isEditRequest = editKeywords.some(keyword => userRequest.toLowerCase().includes(keyword));
 
   if (isEditRequest && previousImages.length > 0 && !referenceImageUrl) {
     const lastImage = previousImages[0];
@@ -424,7 +397,6 @@ export function buildEditPrompt(
   return contextPrompt;
 }
 
-// Generate video using Lao Zhang API
 export async function generateVideo(
   client: LaoZhangClient,
   options: VideoGenerationOptions
@@ -441,52 +413,41 @@ export async function generateVideo(
   } = options;
 
   const config = VIDEO_MODEL_CONFIG[model] || VIDEO_MODEL_CONFIG['sora-2-pro'];
+  const durationSeconds = parseInt(duration.replace('s', ''), 10);
 
   try {
-    // Build the video generation request
     const requestBody: Record<string, unknown> = {
       model: config.apiModelId,
       prompt: prompt,
-      duration: duration,
+      duration: durationSeconds,
       aspect_ratio: aspectRatio,
     };
 
-    // Add camera movement to prompt if specified
     if (cameraMovement && cameraMovement !== 'static') {
       const cameraDesc = CAMERA_MOVEMENTS.find(c => c.id === cameraMovement)?.name || cameraMovement;
       requestBody.prompt = `${prompt}. Camera movement: ${cameraDesc}`;
     }
 
-    // Add audio generation if supported and requested
     if (withAudio && config.supportsAudio) {
       requestBody.with_audio = true;
     }
 
-    // Add start frame if supported and provided
     if (startFrame && config.supportsFrames) {
       const frameData = parseDataUrl(startFrame);
       if (frameData) {
-        requestBody.start_frame = {
-          type: 'image',
-          data: frameData.data,
-          mime_type: frameData.mimeType,
-        };
+        requestBody.start_frame = { type: 'image', data: frameData.data, mime_type: frameData.mimeType };
       }
     }
 
-    // Add end frame if supported and provided
     if (endFrame && config.supportsFrames) {
       const frameData = parseDataUrl(endFrame);
       if (frameData) {
-        requestBody.end_frame = {
-          type: 'image',
-          data: frameData.data,
-          mime_type: frameData.mimeType,
-        };
+        requestBody.end_frame = { type: 'image', data: frameData.data, mime_type: frameData.mimeType };
       }
     }
 
-    // Make the API request to generate video
+    console.log('🎬 Video API Request:', { model: config.apiModelId, duration: durationSeconds, aspectRatio });
+
     const response = await fetch('https://api.laozhang.ai/v1/video/generations', {
       method: 'POST',
       headers: {
@@ -504,39 +465,15 @@ export async function generateVideo(
 
     const data = await response.json();
 
-    // Handle different response formats
-    // Some video APIs return immediately with URL, others return task ID for polling
     if (data.data?.[0]?.url) {
-      // Direct URL response
-      return {
-        url: data.data[0].url,
-        status: 'completed',
-        revisedPrompt: data.data[0].revised_prompt || prompt,
-      };
+      return { url: data.data[0].url, status: 'completed', revisedPrompt: data.data[0].revised_prompt || prompt };
     } else if (data.data?.[0]?.b64_json) {
-      // Base64 video data
-      const mimeType = 'video/mp4';
-      const videoUrl = `data:${mimeType};base64,${data.data[0].b64_json}`;
-      return {
-        url: videoUrl,
-        status: 'completed',
-        revisedPrompt: data.data[0].revised_prompt || prompt,
-      };
+      const videoUrl = `data:video/mp4;base64,${data.data[0].b64_json}`;
+      return { url: videoUrl, status: 'completed', revisedPrompt: data.data[0].revised_prompt || prompt };
     } else if (data.task_id || data.id) {
-      // Async task - return task ID for polling
-      return {
-        url: '',
-        taskId: data.task_id || data.id,
-        status: 'processing',
-        revisedPrompt: prompt,
-      };
+      return { url: '', taskId: data.task_id || data.id, status: 'processing', revisedPrompt: prompt };
     } else if (data.url) {
-      // Simple URL response
-      return {
-        url: data.url,
-        status: 'completed',
-        revisedPrompt: prompt,
-      };
+      return { url: data.url, status: 'completed', revisedPrompt: prompt };
     }
 
     throw new Error('No video URL or task ID found in response');
@@ -547,7 +484,6 @@ export async function generateVideo(
   }
 }
 
-// Check video generation task status (for async generation)
 export async function checkVideoStatus(
   client: LaoZhangClient,
   taskId: string
@@ -563,7 +499,6 @@ export async function checkVideoStatus(
 
     if (!response.ok) {
       const errorText = await response.text();
-      console.error('Video status API Error:', response.status, errorText);
       throw new Error(`Video status API Error: ${response.status} - ${errorText}`);
     }
 
@@ -572,24 +507,13 @@ export async function checkVideoStatus(
     if (data.status === 'completed' || data.status === 'succeeded') {
       const videoUrl = data.data?.[0]?.url || data.url || data.output?.url;
       if (videoUrl) {
-        return {
-          url: videoUrl,
-          status: 'completed',
-        };
+        return { url: videoUrl, status: 'completed' };
       }
     } else if (data.status === 'failed' || data.status === 'error') {
-      return {
-        url: '',
-        status: 'failed',
-        error: data.error || data.message || 'Video generation failed',
-      };
+      return { url: '', status: 'failed', error: data.error || data.message || 'Video generation failed' };
     }
 
-    // Still processing
-    return {
-      url: '',
-      status: 'processing',
-    };
+    return { url: '', status: 'processing' };
   } catch (error: unknown) {
     console.error('Video status check error:', error);
     const errorMessage = error instanceof Error ? error.message : 'Failed to check video status';
