@@ -326,3 +326,210 @@ export async function getConversationVideos(conversationId: string) {
   return data;
 }
 // Force rebuild Sat, Jan 10, 2026  8:30:38 PM
+
+// ============================================================================
+// Elements API - Organize images by color/theme
+// ============================================================================
+
+export interface Element {
+  id: string;
+  name: string;
+  color: string;
+  user_id?: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface ElementPhoto {
+  id: string;
+  element_id: string;
+  photo_url: string;
+  position: number;
+  created_at: string;
+}
+
+/**
+ * Create a new element
+ * @param name - Element name
+ * @param color - Hex color code (e.g., #FF5733)
+ * @param userId - Optional user ID
+ * @returns Created element
+ */
+export async function createElement(
+  name: string,
+  color: string,
+  userId?: string
+): Promise<Element> {
+  const { data, error } = await supabase
+    .from('elements')
+    .insert({
+      name,
+      color,
+      user_id: userId || null,
+    })
+    .select()
+    .single();
+
+  if (error) throw error;
+  return data;
+}
+
+/**
+ * Get all elements
+ * @param userId - Optional user ID filter
+ * @returns Array of elements
+ */
+export async function getElements(userId?: string): Promise<Element[]> {
+  let query = supabase
+    .from('elements')
+    .select('*')
+    .order('created_at', { ascending: false });
+
+  if (userId) {
+    query = query.eq('user_id', userId);
+  }
+
+  const { data, error } = await query;
+
+  if (error) throw error;
+  return data || [];
+}
+
+/**
+ * Get a single element by ID
+ * @param id - Element ID
+ * @returns Element data
+ */
+export async function getElement(id: string): Promise<Element> {
+  const { data, error } = await supabase
+    .from('elements')
+    .select('*')
+    .eq('id', id)
+    .single();
+
+  if (error) throw error;
+  return data;
+}
+
+/**
+ * Update an element
+ * @param id - Element ID
+ * @param updates - Fields to update
+ * @returns Updated element
+ */
+export async function updateElement(
+  id: string,
+  updates: Partial<Pick<Element, 'name' | 'color'>>
+): Promise<Element> {
+  const { data, error } = await supabase
+    .from('elements')
+    .update(updates)
+    .eq('id', id)
+    .select()
+    .single();
+
+  if (error) throw error;
+  return data;
+}
+
+/**
+ * Delete an element (cascades to photos)
+ * @param id - Element ID
+ */
+export async function deleteElement(id: string): Promise<void> {
+  const { error } = await supabase
+    .from('elements')
+    .delete()
+    .eq('id', id);
+
+  if (error) throw error;
+}
+
+/**
+ * Add a photo to an element
+ * @param elementId - Element ID
+ * @param photoUrl - Photo URL
+ * @param position - Optional position (defaults to end)
+ * @returns Created element photo
+ */
+export async function addPhotoToElement(
+  elementId: string,
+  photoUrl: string,
+  position?: number
+): Promise<ElementPhoto> {
+  // If position not provided, get max position + 1
+  let finalPosition = position;
+  if (finalPosition === undefined) {
+    const { data: photos } = await supabase
+      .from('element_photos')
+      .select('position')
+      .eq('element_id', elementId)
+      .order('position', { ascending: false })
+      .limit(1);
+
+    finalPosition = photos && photos.length > 0 ? photos[0].position + 1 : 0;
+  }
+
+  const { data, error } = await supabase
+    .from('element_photos')
+    .insert({
+      element_id: elementId,
+      photo_url: photoUrl,
+      position: finalPosition,
+    })
+    .select()
+    .single();
+
+  if (error) throw error;
+  return data;
+}
+
+/**
+ * Get all photos for an element
+ * @param elementId - Element ID
+ * @returns Array of element photos
+ */
+export async function getElementPhotos(elementId: string): Promise<ElementPhoto[]> {
+  const { data, error } = await supabase
+    .from('element_photos')
+    .select('*')
+    .eq('element_id', elementId)
+    .order('position', { ascending: true });
+
+  if (error) throw error;
+  return data || [];
+}
+
+/**
+ * Remove a photo from an element
+ * @param photoId - Element photo ID
+ */
+export async function removePhotoFromElement(photoId: string): Promise<void> {
+  const { error } = await supabase
+    .from('element_photos')
+    .delete()
+    .eq('id', photoId);
+
+  if (error) throw error;
+}
+
+/**
+ * Update photo position within an element
+ * @param photoId - Element photo ID
+ * @param newPosition - New position
+ * @returns Updated element photo
+ */
+export async function updatePhotoPosition(
+  photoId: string,
+  newPosition: number
+): Promise<ElementPhoto> {
+  const { data, error } = await supabase
+    .from('element_photos')
+    .update({ position: newPosition })
+    .eq('id', photoId)
+    .select()
+    .single();
+
+  if (error) throw error;
+  return data;
+}

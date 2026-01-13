@@ -93,3 +93,18 @@ export type CameraMovement =
   | 'dolly-in' | 'dolly-out' | 'truck-left' | 'truck-right'
   | 'orbit-left' | 'orbit-right' | 'jib-up' | 'jib-down'
   | 'drone-shot' | '360-roll' | 'whip-pan' | 'rack-focus';
+
+// Elements System Types
+export interface ElementPhoto {
+  id: string;
+  url: string;
+}
+
+export interface Element {
+  id: string;
+  name: string;
+  color: string; // hex color for tag
+  photos: ElementPhoto[];
+  createdAt: string;
+  updatedAt: string;
+}

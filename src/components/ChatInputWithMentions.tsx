@@ -2,6 +2,7 @@
 
 import { useState, useRef, useCallback, KeyboardEvent } from 'react';
 import { GeneratedImage } from '@/types';
+import MentionInput, { MentionableElement, ParsedMention, parseMentions } from './MentionInput';
 
 // Supported image formats including HEIC for iOS
 const ACCEPTED_FORMATS = 'image/jpeg,image/png,image/webp,image/heic,image/heif';
@@ -13,8 +14,8 @@ interface UploadedImageData {
   fileSize: number;
 }
 
-interface ChatInputProps {
-  onSend: (message: string, referenceImageId?: string, uploadedImage?: string, styleReference?: string) => void;
+interface ChatInputWithMentionsProps {
+  onSend: (message: string, referenceImageId?: string, uploadedImage?: string, styleReference?: string, mentions?: ParsedMention[]) => void;
   isLoading: boolean;
   selectedImage: GeneratedImage | null;
   onClearSelectedImage: () => void;
@@ -28,9 +29,11 @@ interface ChatInputProps {
   styleReferenceInfo: UploadedImageData | null;
   onStyleUpload: (base64: string, fileName: string, fileSize: number) => void;
   onClearStyleReference: () => void;
+  // Elements for @ mentions
+  mentionableElements?: MentionableElement[];
 }
 
-export default function ChatInput({
+export default function ChatInputWithMentions({
   onSend,
   isLoading,
   selectedImage,
@@ -43,27 +46,28 @@ export default function ChatInput({
   styleReferenceInfo,
   onStyleUpload,
   onClearStyleReference,
-}: ChatInputProps) {
+  mentionableElements = [],
+}: ChatInputWithMentionsProps) {
   const [input, setInput] = useState('');
   const [uploadError, setUploadError] = useState<string | null>(null);
   const [isDragging, setIsDragging] = useState(false);
-  const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const [currentMentions, setCurrentMentions] = useState<ParsedMention[]>([]);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const styleInputRef = useRef<HTMLInputElement>(null);
 
   const handleSubmit = () => {
     if (!input.trim() || isLoading) return;
-    onSend(input.trim(), selectedImage?.id, uploadedImage || undefined, styleReference || undefined);
+
+    // Parse mentions from the input
+    const mentions = parseMentions(input, mentionableElements);
+
+    onSend(input.trim(), selectedImage?.id, uploadedImage || undefined, styleReference || undefined, mentions);
     setInput('');
+    setCurrentMentions([]);
     onClearSelectedImage();
     onClearUploadedImage();
     onClearStyleReference();
     setUploadError(null);
-
-    // Reset textarea height
-    if (textareaRef.current) {
-      textareaRef.current.style.height = 'auto';
-    }
   };
 
   const processFile = useCallback((file: File, isStyleReference: boolean = false) => {
@@ -87,13 +91,8 @@ export default function ChatInput({
     setUploadError(null);
 
     const reader = new FileReader();
-
     reader.onload = (event) => {
       const base64 = event.target?.result as string;
-      if (!base64) {
-        setUploadError('Failed to read image. Please try again.');
-        return;
-      }
       if (isStyleReference) {
         onStyleUpload(base64, file.name, file.size);
       } else {
@@ -102,21 +101,7 @@ export default function ChatInput({
         onClearSelectedImage();
       }
     };
-
-    reader.onerror = () => {
-      setUploadError('Failed to read image file. Please try again.');
-    };
-
-    reader.onabort = () => {
-      setUploadError('Image upload was cancelled.');
-    };
-
-    // Use try-catch for additional safety
-    try {
-      reader.readAsDataURL(file);
-    } catch {
-      setUploadError('Failed to process image. Please try a different file.');
-    }
+    reader.readAsDataURL(file);
   }, [onImageUpload, onStyleUpload, onClearSelectedImage]);
 
   const handleFileSelect = useCallback((e: React.ChangeEvent<HTMLInputElement>, isStyleReference: boolean = false) => {
@@ -161,15 +146,6 @@ export default function ChatInput({
     if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault();
       handleSubmit();
-    }
-  };
-
-  const handleInput = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
-    setInput(e.target.value);
-    // Auto-resize textarea
-    if (textareaRef.current) {
-      textareaRef.current.style.height = 'auto';
-      textareaRef.current.style.height = `${Math.min(textareaRef.current.scrollHeight, 200)}px`;
     }
   };
 
@@ -256,6 +232,27 @@ export default function ChatInput({
               />
             </svg>
           </button>
+        </div>
+      )}
+
+      {/* Active mentions preview (optional) */}
+      {currentMentions.length > 0 && (
+        <div className="mb-3 flex flex-wrap gap-2">
+          {currentMentions.map((mention, idx) => (
+            <div
+              key={`${mention.element.id}-${idx}`}
+              className="flex items-center gap-2 px-2 py-1 bg-lime-900/30 border border-lime-600/50 rounded-lg"
+            >
+              {mention.element.imageUrl && (
+                <img
+                  src={mention.element.imageUrl}
+                  alt={mention.name}
+                  className="w-6 h-6 rounded object-cover"
+                />
+              )}
+              <span className="text-xs text-lime-300">@{mention.name}</span>
+            </div>
+          ))}
         </div>
       )}
 
@@ -504,26 +501,25 @@ export default function ChatInput({
         </button>
 
         <div className="flex-1 relative">
-          <textarea
-            ref={textareaRef}
+          <MentionInput
             value={input}
-            onChange={handleInput}
+            onChange={setInput}
             onKeyDown={handleKeyDown}
             placeholder={
               uploadedImage && styleReference
-                ? "Describe how to transform this image with this style..."
+                ? "Describe how to transform this image with this style... (use @ to reference elements)"
                 : uploadedImage
-                ? "Describe what to do with this image..."
+                ? "Describe what to do with this image... (use @ to reference elements)"
                 : styleReference
-                ? "Describe what to generate in this style..."
+                ? "Describe what to generate in this style... (use @ to reference elements)"
                 : selectedImage
-                ? "Describe how to edit this image..."
-                : "Describe the image you want to generate..."
+                ? "Describe how to edit this image... (use @ to reference elements)"
+                : "Describe the image you want to generate... (use @ to reference elements)"
             }
             disabled={isLoading}
-            rows={1}
             className="w-full px-4 py-3 bg-zinc-800 border border-zinc-700 rounded-xl resize-none focus:outline-none focus:ring-2 focus:ring-lime-500 focus:border-transparent disabled:opacity-50 disabled:cursor-not-allowed text-sm"
-            style={{ minHeight: '48px', maxHeight: '200px' }}
+            elements={mentionableElements}
+            onMentionsChange={setCurrentMentions}
           />
         </div>
 
@@ -574,7 +570,7 @@ export default function ChatInput({
 
       {/* Hint text */}
       <p className="mt-2 text-xs text-gray-500 text-center">
-        Press Enter to send, Shift+Enter for new line.{' '}
+        Press Enter to send, Shift+Enter for new line. Type @ to reference elements.{' '}
         {uploadedImage && styleReference
           ? 'Edit image with style reference attached.'
           : uploadedImage

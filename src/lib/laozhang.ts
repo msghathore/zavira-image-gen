@@ -283,12 +283,19 @@ export async function generateImage(
       }
     } else if (config.useImagesApi) {
       // Use OpenAI Images API for GPT-image-1.5
+      // Enhance prompt with style reference if provided
+      let enhancedPrompt = prompt;
+      if (styleReference) {
+        // Since OpenAI Images API does not support separate style reference parameter,
+        // we add style guidance to the prompt itself
+        enhancedPrompt = `${prompt}. Use the visual style, aesthetic, and artistic approach similar to the reference image provided.`;
+      }
       const size = getOpenAISizeFromAspectRatio(aspectRatio);
       const quality = 'high';
 
       const requestBody: any = {
         model: config.apiModelId,
-        prompt: prompt,
+        prompt: enhancedPrompt,
         n: 1,
         size: size,
         quality: quality,
@@ -299,6 +306,14 @@ export async function generateImage(
         const imageData = parseDataUrl(referenceImage);
         if (imageData) {
           requestBody.image = imageData.data;
+        }
+} else if (styleReference) {
+        // If only style reference is provided, use it as the reference image
+        const styleData = parseDataUrl(styleReference);
+        if (styleData) {
+          requestBody.image = styleData.data;
+          // Update prompt to indicate we want similar style
+          requestBody.prompt = `Create an image with the following description: ${prompt}. Match the visual style and aesthetic of the reference image.`;
         }
       }
 

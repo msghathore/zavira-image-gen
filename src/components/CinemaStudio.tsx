@@ -5,6 +5,7 @@ import Image from 'next/image';
 import { useInView } from 'react-intersection-observer';
 import { getCachedImageUrl, preloadImages, isInMemoryCache } from '@/lib/image-cache';
 import { decodeBlurhash } from '@/lib/blurhash-utils';
+import ElementsPanel from './ElementsPanel';
 
 // ==================== LAZY MEDIA COMPONENT ====================
 
@@ -962,6 +963,7 @@ export default function CinemaStudio({
   const [showModelSelector, setShowModelSelector] = useState(false);
   const [showFrameUpload, setShowFrameUpload] = useState(false);
   const [showGallery, setShowGallery] = useState(false);
+  const [showElements, setShowElements] = useState(false);
   const [expandedImage, setExpandedImage] = useState<string | null>(null);
 
   // Refs
@@ -1220,6 +1222,12 @@ export default function CinemaStudio({
               </div>
             )}
           </div>
+
+          {/* Elements Section */}
+          <ElementsPanel
+            isOpen={showElements}
+            onToggle={() => setShowElements(!showElements)}
+          />
         </div>
 
         {/* Minimal Icon Sidebar */}
@@ -1247,6 +1255,20 @@ export default function CinemaStudio({
           >
             <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
+            </svg>
+          </button>
+
+
+          {/* Elements */}
+          <button
+            onClick={() => setShowElements(!showElements)}
+            className={`w-10 h-10 rounded-lg flex items-center justify-center transition-colors ${
+              showElements ? 'bg-lime-500 text-black' : 'bg-zinc-800 hover:bg-zinc-700'
+            }`}
+            title="Elements"
+          >
+            <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" />
             </svg>
           </button>
 
