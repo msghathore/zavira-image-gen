@@ -284,7 +284,7 @@ export async function generateImage(
     } else if (config.useImagesApi) {
       // Use OpenAI Images API for GPT-image-1
       const size = getOpenAISizeFromAspectRatio(aspectRatio);
-      const quality = 'hd'; // Always use HD quality
+      const quality = 'high'; // Always use HD quality
 
       const requestBody = {
         model: config.apiModelId,
