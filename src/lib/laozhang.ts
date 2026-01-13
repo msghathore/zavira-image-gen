@@ -292,7 +292,6 @@ export async function generateImage(
         n: 1,
         size: size,
         quality: quality,
-        response_format: 'b64_json',
       };
 
       console.log('🚀 GPT Image API Request:', { model: config.apiModelId, size, quality, aspectRatio });
