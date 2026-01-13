@@ -797,10 +797,22 @@ export interface GeneratedContent {
   blurhash?: string; // BlurHash placeholder for instant loading
 }
 
+// Generation slot for parallel generation display
+export interface GenerationSlot {
+  id: string;
+  type: 'image' | 'video';
+  prompt: string;
+  status: 'pending' | 'generating' | 'complete' | 'error';
+  result?: GeneratedContent;
+  error?: string;
+}
+
 export interface CinemaStudioProps {
   onImageGenerate?: (prompt: string, model: ImageModel, aspectRatio: AspectRatio, imageSize: Resolution, imageCount: number, uploadedImage?: string, styleReference?: string) => Promise<void>;
   onVideoGenerate?: (state: VideoGenerateParams) => Promise<void>;
   isLoading?: boolean;
+  activeGenerations?: number; // Number of currently generating items
+  generationSlots?: GenerationSlot[]; // Active generation slots to display
   generatedContent?: GeneratedContent[];
   // Conversation/Project history
   conversations?: Conversation[];
@@ -915,6 +927,8 @@ export default function CinemaStudio({
   onImageGenerate,
   onVideoGenerate,
   isLoading = false,
+  activeGenerations = 0,
+  generationSlots = [],
   generatedContent = [],
   conversations = [],
   activeConversationId = null,
@@ -923,9 +937,9 @@ export default function CinemaStudio({
   onDeleteConversation,
 }: CinemaStudioProps) {
   // Core State
-  const [mode, setMode] = useState<ContentMode>('video');
+  const [mode, setMode] = useState<ContentMode>('image');
   const [prompt, setPrompt] = useState('');
-  const [sidebarVisible, setSidebarVisible] = useState(true);
+  const [sidebarVisible, setSidebarVisible] = useState(false); // Hide old conversations by default
 
   // Video Settings
   const [videoModel, setVideoModel] = useState<VideoModel>('sora-2-pro');
@@ -944,6 +958,10 @@ export default function CinemaStudio({
   const [imageCount, setImageCount] = useState(1);
   const [uploadedImage, setUploadedImage] = useState<string | null>(null);
   const [styleReference, setStyleReference] = useState<string | null>(null);
+
+  // Default prompts for realistic skin (auto-prepended)
+  const DEFAULT_SKIN_PROMPTS = "visible pores, subtle skin imperfections, subsurface scattering, vellus hair (peach fuzz)";
+  const DEFAULT_NEGATIVE_PROMPTS = "no plastic skin, no waxy skin, no airbrushed look, no beauty filter, no overly smooth skin";
 
   // Cinema Settings (Higgsfield-style)
   const [cinemaSettings, setCinemaSettings] = useState<CinemaSettings>({
@@ -1120,7 +1138,10 @@ export default function CinemaStudio({
         resolution,
       });
     } else if (mode === 'image' && onImageGenerate) {
-      await onImageGenerate(prompt, imageModel, aspectRatio, resolution, imageCount, uploadedImage || undefined, styleReference || undefined);
+      // Build enhanced prompt with camera settings and skin prompts
+      const cameraPrompt = `Shot on ${cinemaSettings.cameraBody} with ${cinemaSettings.lensName} lens at ${cinemaSettings.focalLength}mm ${cinemaSettings.aperture}`;
+      const enhancedPrompt = `${prompt}, ${cameraPrompt}, ${DEFAULT_SKIN_PROMPTS}, ${DEFAULT_NEGATIVE_PROMPTS}`;
+      await onImageGenerate(enhancedPrompt, imageModel, aspectRatio, resolution, imageCount, uploadedImage || undefined, styleReference || undefined);
     }
   }, [mode, prompt, videoModel, imageModel, duration, aspectRatio, cameraMovement, audioEnabled, lensEnabled, lensIntensity, startFrame, endFrame, cinemaSettings, resolution, uploadedImage, styleReference, imageCount, onVideoGenerate, onImageGenerate]);
 
@@ -1335,13 +1356,75 @@ export default function CinemaStudio({
             </div>
           )}
 
-          {/* Loading Overlay */}
-          {isLoading && (
-            <div className="absolute inset-0 bg-black/60 flex items-center justify-center rounded-lg z-10">
-              <div className="text-center">
-                <div className="w-16 h-16 border-4 border-lime-500 border-t-transparent rounded-full animate-spin mx-auto mb-4" />
-                <p className="text-lg font-medium">Generating...</p>
-                <p className="text-sm text-zinc-400">This may take a moment</p>
+          {/* Parallel Generation Slots - ChatGPT Style */}
+          {generationSlots.length > 0 && (
+            <div className="absolute inset-4 z-10">
+              <div className={`grid gap-3 h-full ${
+                generationSlots.length === 1 ? 'grid-cols-1' :
+                generationSlots.length === 2 ? 'grid-cols-2' :
+                generationSlots.length <= 4 ? 'grid-cols-2 grid-rows-2' :
+                'grid-cols-3 grid-rows-2'
+              }`}>
+                {generationSlots.map((slot) => (
+                  <div
+                    key={slot.id}
+                    className={`relative rounded-xl overflow-hidden transition-all ${
+                      slot.status === 'complete' && slot.result?.url
+                        ? ''
+                        : 'bg-zinc-800/90 backdrop-blur-sm border border-zinc-700/50'
+                    }`}
+                  >
+                    {/* Completed - Show Result */}
+                    {slot.status === 'complete' && slot.result?.url && (
+                      <>
+                        {slot.type === 'video' ? (
+                          <video
+                            src={slot.result.url}
+                            className="absolute inset-0 w-full h-full object-cover"
+                            autoPlay
+                            loop
+                            muted
+                            playsInline
+                          />
+                        ) : (
+                          <Image
+                            src={slot.result.url}
+                            alt={slot.prompt}
+                            fill
+                            className="object-cover"
+                          />
+                        )}
+                        <div className="absolute top-2 right-2 bg-lime-500 text-black text-xs font-bold px-2 py-1 rounded-full">
+                          ✓ Done
+                        </div>
+                      </>
+                    )}
+
+                    {/* Generating - Show Spinner */}
+                    {(slot.status === 'pending' || slot.status === 'generating') && (
+                      <div className="flex flex-col items-center justify-center h-full p-4">
+                        <div className="w-12 h-12 border-3 border-lime-500 border-t-transparent rounded-full animate-spin mb-3" />
+                        <p className="text-sm font-medium text-center line-clamp-2 text-zinc-300">
+                          {slot.type === 'video' ? 'Generating video...' : 'Generating image...'}
+                        </p>
+                        <p className="text-xs text-zinc-500 mt-1 text-center line-clamp-1 max-w-full">
+                          {slot.prompt.length > 40 ? slot.prompt.slice(0, 40) + '...' : slot.prompt}
+                        </p>
+                      </div>
+                    )}
+
+                    {/* Error State */}
+                    {slot.status === 'error' && (
+                      <div className="flex flex-col items-center justify-center h-full p-4">
+                        <svg className="w-10 h-10 text-red-500 mb-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                        </svg>
+                        <p className="text-sm text-red-400 text-center">Failed to generate</p>
+                        <p className="text-xs text-zinc-500 mt-1">{slot.error || 'Unknown error'}</p>
+                      </div>
+                    )}
+                  </div>
+                ))}
               </div>
             </div>
           )}
@@ -1443,15 +1526,17 @@ export default function CinemaStudio({
         )}
       </div>
 
-      {/* Bottom Control Bar */}
-      <div className="border-t border-zinc-800 bg-zinc-900 px-4 py-3">
+      {/* Bottom Control Bar - Higgsfield Glass Look */}
+      <div className="border-t border-zinc-800/50 bg-zinc-900/80 backdrop-blur-md px-4 py-4">
         <div className="flex items-center gap-3">
-          {/* Mode Toggle */}
-          <div className="inline-flex bg-zinc-800 rounded-full p-0.5">
+          {/* Mode Toggle - Glass Look */}
+          <div className="inline-flex bg-zinc-800/60 backdrop-blur-sm rounded-xl p-1 border border-zinc-700/30">
             <button
               onClick={() => setMode('image')}
-              className={`px-3 py-1.5 rounded-full text-xs font-medium transition-all flex items-center gap-1.5 ${
-                mode === 'image' ? 'bg-lime-500 text-black' : 'text-zinc-400 hover:text-white'
+              className={`px-4 py-2 rounded-lg text-xs font-medium transition-all flex items-center gap-1.5 ${
+                mode === 'image'
+                  ? 'bg-lime-500/90 text-black shadow-lg'
+                  : 'text-zinc-400 hover:text-white hover:bg-zinc-700/50'
               }`}
             >
               <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -1461,8 +1546,10 @@ export default function CinemaStudio({
             </button>
             <button
               onClick={() => setMode('video')}
-              className={`px-3 py-1.5 rounded-full text-xs font-medium transition-all flex items-center gap-1.5 ${
-                mode === 'video' ? 'bg-lime-500 text-black' : 'text-zinc-400 hover:text-white'
+              className={`px-4 py-2 rounded-lg text-xs font-medium transition-all flex items-center gap-1.5 ${
+                mode === 'video'
+                  ? 'bg-lime-500/90 text-black shadow-lg'
+                  : 'text-zinc-400 hover:text-white hover:bg-zinc-700/50'
               }`}
             >
               <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -1473,15 +1560,16 @@ export default function CinemaStudio({
             </button>
           </div>
 
-          {/* Prompt Input */}
+          {/* Prompt Input - Taller like Higgsfield */}
           <div className="flex-1 relative">
-            <input
-              type="text"
+            <textarea
               value={prompt}
               onChange={(e) => setPrompt(e.target.value)}
-              onKeyDown={(e) => e.key === 'Enter' && !e.shiftKey && handleGenerate()}
+              onKeyDown={(e) => e.key === 'Enter' && !e.shiftKey && (e.preventDefault(), handleGenerate())}
               placeholder={mode === 'video' ? "Describe your video scene..." : "Describe what you want to create..."}
-              className="w-full bg-zinc-800 border border-zinc-700 rounded-lg px-4 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-lime-500 focus:border-transparent placeholder:text-zinc-500"
+              rows={2}
+              className="w-full bg-zinc-800/80 backdrop-blur-sm border border-zinc-700/50 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-lime-500/50 focus:border-lime-500/50 placeholder:text-zinc-500 resize-none"
+              style={{ minHeight: '56px' }}
             />
           </div>
 
@@ -1698,11 +1786,29 @@ export default function CinemaStudio({
           {/* Image Controls */}
           {mode === 'image' && (
             <>
+              {/* Camera Info / Cinema Settings - Higgsfield style summary (for Images) */}
+              <button
+                onClick={() => setShowCinemaSettings(!showCinemaSettings)}
+                className={`px-3 py-2 rounded-xl text-xs font-medium transition-all flex items-center gap-1.5 max-w-[320px] backdrop-blur-sm ${
+                  showCinemaSettings
+                    ? 'bg-lime-500/90 text-black'
+                    : 'bg-zinc-800/80 hover:bg-zinc-700/80 border border-zinc-700/50'
+                }`}
+              >
+                <svg className="w-4 h-4 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z" />
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 13a3 3 0 11-6 0 3 3 0 016 0z" />
+                </svg>
+                <span className="truncate">
+                  {cinemaSettings.cameraBody} · {cinemaSettings.lensName} · {cinemaSettings.focalLength}mm · {cinemaSettings.aperture}
+                </span>
+              </button>
+
               {/* Aspect Ratio */}
               <select
                 value={aspectRatio}
                 onChange={(e) => setAspectRatio(e.target.value as AspectRatio)}
-                className="bg-zinc-800 border border-zinc-700 rounded-lg px-2 py-2 text-xs font-medium focus:outline-none focus:ring-2 focus:ring-lime-500"
+                className="bg-zinc-800/80 backdrop-blur-sm border border-zinc-700/50 rounded-xl px-3 py-2 text-xs font-medium focus:outline-none focus:ring-2 focus:ring-lime-500/50"
               >
                 {ASPECT_RATIOS.map(ar => (
                   <option key={ar} value={ar}>{ar}</option>
@@ -1710,7 +1816,7 @@ export default function CinemaStudio({
               </select>
 
               {/* Image Count */}
-              <div className="flex items-center gap-1 bg-zinc-800 rounded-lg px-2 py-1">
+              <div className="flex items-center gap-1 bg-zinc-800/80 backdrop-blur-sm border border-zinc-700/50 rounded-xl px-3 py-1.5">
                 <span className="text-xs text-zinc-400">×</span>
                 <select
                   value={imageCount}
@@ -1727,8 +1833,10 @@ export default function CinemaStudio({
               <div className="relative">
                 <button
                   onClick={() => imageUploadRef.current?.click()}
-                  className={`p-2 rounded-lg transition-colors ${
-                    uploadedImage ? 'bg-lime-500 text-black' : 'bg-zinc-800 hover:bg-zinc-700'
+                  className={`p-2.5 rounded-xl transition-all backdrop-blur-sm ${
+                    uploadedImage
+                      ? 'bg-lime-500/90 text-black'
+                      : 'bg-zinc-800/80 hover:bg-zinc-700/80 border border-zinc-700/50'
                   }`}
                   title={uploadedImage ? "Reference image attached - Click to change" : "Upload Reference Image"}
                 >
@@ -1736,7 +1844,7 @@ export default function CinemaStudio({
                     <img
                       src={uploadedImage}
                       alt="Reference"
-                      className="w-6 h-6 object-cover rounded"
+                      className="w-6 h-6 object-cover rounded-lg"
                     />
                   ) : (
                     <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -1762,8 +1870,10 @@ export default function CinemaStudio({
               <div className="relative">
                 <button
                   onClick={() => styleUploadRef.current?.click()}
-                  className={`p-2 rounded-lg transition-colors ${
-                    styleReference ? 'bg-lime-500 text-black' : 'bg-zinc-800 hover:bg-zinc-700'
+                  className={`p-2.5 rounded-xl transition-all backdrop-blur-sm ${
+                    styleReference
+                      ? 'bg-lime-500/90 text-black'
+                      : 'bg-zinc-800/80 hover:bg-zinc-700/80 border border-zinc-700/50'
                   }`}
                   title={styleReference ? "Style reference attached - Click to change" : "Upload Style Reference"}
                 >
@@ -1771,7 +1881,7 @@ export default function CinemaStudio({
                     <img
                       src={styleReference}
                       alt="Style"
-                      className="w-6 h-6 object-cover rounded"
+                      className="w-6 h-6 object-cover rounded-lg"
                     />
                   ) : (
                     <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -1793,11 +1903,24 @@ export default function CinemaStudio({
                 )}
               </div>
 
+              {/* Resolution */}
+              <select
+                value={resolution}
+                onChange={(e) => setResolution(e.target.value as Resolution)}
+                className="bg-zinc-800/80 backdrop-blur-sm border border-zinc-700/50 rounded-xl px-3 py-2 text-xs font-medium focus:outline-none focus:ring-2 focus:ring-lime-500/50"
+              >
+                {RESOLUTIONS.map(r => (
+                  <option key={r} value={r}>{r}</option>
+                ))}
+              </select>
+
               {/* Model Selector */}
               <button
                 onClick={() => setShowModelSelector(!showModelSelector)}
-                className={`px-3 py-2 rounded-lg text-xs font-medium transition-colors ${
-                  showModelSelector ? 'bg-lime-500 text-black' : 'bg-zinc-800 hover:bg-zinc-700'
+                className={`px-3 py-2 rounded-xl text-xs font-medium transition-all backdrop-blur-sm ${
+                  showModelSelector
+                    ? 'bg-lime-500/90 text-black'
+                    : 'bg-zinc-800/80 hover:bg-zinc-700/80 border border-zinc-700/50'
                 }`}
               >
                 {selectedImageModel?.name || 'Model'}
@@ -1805,23 +1928,23 @@ export default function CinemaStudio({
             </>
           )}
 
-          {/* Generate Button */}
+          {/* Generate Button - Always Clickable for Parallel Generation */}
           <button
             onClick={handleGenerate}
-            disabled={isLoading || !prompt.trim()}
-            className={`px-6 py-2 rounded-lg font-medium transition-all flex items-center gap-2 ${
-              isLoading || !prompt.trim()
-                ? 'bg-zinc-700 text-zinc-500 cursor-not-allowed'
-                : 'bg-lime-500 hover:bg-lime-400 text-black'
+            disabled={!prompt.trim()}
+            className={`px-8 py-3 rounded-xl font-semibold transition-all flex items-center gap-2 text-sm tracking-wide ${
+              !prompt.trim()
+                ? 'bg-zinc-700/80 text-zinc-500 cursor-not-allowed'
+                : 'bg-lime-500 hover:bg-lime-400 text-black shadow-lg shadow-lime-500/25 hover:shadow-lime-400/30'
             }`}
           >
-            {isLoading ? (
+            {activeGenerations > 0 ? (
               <>
                 <svg className="animate-spin h-4 w-4" fill="none" viewBox="0 0 24 24">
                   <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
                   <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
                 </svg>
-                Generating
+                {activeGenerations} Generating...
               </>
             ) : (
               'GENERATE'

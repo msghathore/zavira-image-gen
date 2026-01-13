@@ -8,12 +8,14 @@ import CinemaStudio, {
   AspectRatio,
   Resolution,
   Conversation,
+  GenerationSlot,
 } from '@/components/CinemaStudio';
 
 export default function Home() {
   const [activeGenerations, setActiveGenerations] = useState(0);
   const isLoading = activeGenerations > 0;
   const [generatedContent, setGeneratedContent] = useState<GeneratedContent[]>([]);
+  const [generationSlots, setGenerationSlots] = useState<GenerationSlot[]>([]);
   const [conversationId, setConversationId] = useState<string | null>(null);
   const [conversations, setConversations] = useState<Conversation[]>([]);
 
@@ -131,15 +133,24 @@ export default function Home() {
     return result;
   };
 
-  // Parallel image generation
+  // Parallel image generation with slots
   const handleImageGenerate = useCallback(async (
     prompt: string, model: ImageModel, aspectRatio: AspectRatio, imageSize: Resolution,
     imageCount: number, uploadedImage?: string, styleReference?: string
   ) => {
+    // Create slots for each image being generated
+    const newSlots: GenerationSlot[] = Array.from({ length: imageCount }, (_, i) => ({
+      id: `img-${Date.now()}-${i}`,
+      type: 'image' as const,
+      prompt,
+      status: 'generating' as const,
+    }));
+
+    setGenerationSlots(prev => [...newSlots, ...prev]);
     setActiveGenerations(prev => prev + imageCount);
     let currentConvId = conversationId;
 
-    const generatePromises = Array.from({ length: imageCount }, async () => {
+    const generatePromises = newSlots.map(async (slot) => {
       try {
         const result = await generateSingleImage(prompt, model, aspectRatio, imageSize, currentConvId, uploadedImage, styleReference);
         if (result.conversationId && !currentConvId) {
@@ -147,10 +158,20 @@ export default function Home() {
           setConversationId(result.conversationId);
           fetchConversations();
         }
-        if (result.image) setGeneratedContent(prev => [result.image!, ...prev]);
+        if (result.image) {
+          // Update slot to complete with result
+          setGenerationSlots(prev => prev.map(s =>
+            s.id === slot.id ? { ...s, status: 'complete' as const, result: result.image } : s
+          ));
+          setGeneratedContent(prev => [result.image!, ...prev]);
+        }
         return result;
       } catch (error: unknown) {
         console.error('Image generation error:', error);
+        // Update slot to error state
+        setGenerationSlots(prev => prev.map(s =>
+          s.id === slot.id ? { ...s, status: 'error' as const, error: error instanceof Error ? error.message : 'Unknown error' } : s
+        ));
         return null;
       } finally {
         setActiveGenerations(prev => prev - 1);
@@ -158,12 +179,31 @@ export default function Home() {
     });
 
     const results = await Promise.all(generatePromises);
+
+    // Remove completed/error slots after a delay (let user see results)
+    setTimeout(() => {
+      setGenerationSlots(prev => prev.filter(s => !newSlots.some(ns => ns.id === s.id)));
+    }, 3000);
+
     const successCount = results.filter(r => r?.image).length;
-    if (successCount === 0 && imageCount > 0) alert('Failed to generate images. Please try again.');
+    if (successCount === 0 && imageCount > 0) {
+      // Don't alert, error is shown in slots
+      console.error('All image generations failed');
+    }
   }, [conversationId]);
 
-  // Handle video generation
+  // Handle video generation with slots
   const handleVideoGenerate = useCallback(async (params: VideoGenerateParams) => {
+    // Create a slot for this video
+    const slotId = `vid-${Date.now()}`;
+    const newSlot: GenerationSlot = {
+      id: slotId,
+      type: 'video',
+      prompt: params.prompt,
+      status: 'generating',
+    };
+
+    setGenerationSlots(prev => [newSlot, ...prev]);
     setActiveGenerations(prev => prev + 1);
 
     try {
@@ -209,7 +249,7 @@ export default function Home() {
         fetchConversations(); // Refresh list
       }
 
-      // Add to generated content
+      // Add to generated content and update slot
       if (data.video) {
         const newContent: GeneratedContent = {
           id: data.video.id,
@@ -218,13 +258,26 @@ export default function Home() {
           prompt: params.prompt,
           created_at: new Date().toISOString(),
         };
+
+        // Update slot to complete
+        setGenerationSlots(prev => prev.map(s =>
+          s.id === slotId ? { ...s, status: 'complete' as const, result: newContent } : s
+        ));
         setGeneratedContent(prev => [newContent, ...prev]);
       }
     } catch (error: unknown) {
       console.error('Video generation error:', error);
-      alert(error instanceof Error ? error.message : 'Failed to generate video');
+      // Update slot to error state
+      setGenerationSlots(prev => prev.map(s =>
+        s.id === slotId ? { ...s, status: 'error' as const, error: error instanceof Error ? error.message : 'Unknown error' } : s
+      ));
     } finally {
       setActiveGenerations(prev => prev - 1);
+
+      // Remove slot after delay
+      setTimeout(() => {
+        setGenerationSlots(prev => prev.filter(s => s.id !== slotId));
+      }, 3000);
     }
   }, [conversationId]);
 
@@ -233,6 +286,8 @@ export default function Home() {
       onImageGenerate={handleImageGenerate}
       onVideoGenerate={handleVideoGenerate}
       isLoading={isLoading}
+      activeGenerations={activeGenerations}
+      generationSlots={generationSlots}
       generatedContent={generatedContent}
       conversations={conversations}
       activeConversationId={conversationId}
